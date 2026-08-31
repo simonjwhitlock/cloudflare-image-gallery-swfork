@@ -1,7 +1,7 @@
 import { buildGalleryHTML } from '../html/gallery';
 import { addSecurityHeaders } from '../app/security';
 import { getIndexStub, type GalleryApp } from '../app/worker';
-import type { ListResponse } from '../types';
+import type { ListResponse, SiteMeta } from '../types';
 
 export const registerGalleryRoutes = (app: GalleryApp) => {
   app.get('/api/health', (c) =>
@@ -32,8 +32,23 @@ export const registerGalleryRoutes = (app: GalleryApp) => {
     );
   });
 
-  app.get('/', (c) => {
+  app.get('/', async (c) => {
     const baseUrl = new URL('/', c.req.url).toString();
-    return addSecurityHeaders(c.html(buildGalleryHTML(baseUrl)));
+    let siteMeta: SiteMeta | null = null;
+    try {
+      const stub = getIndexStub(c.env);
+      const resp = await stub.fetch('https://index/site-meta');
+      if (resp.ok) {
+        const data = (await resp.json()) as Partial<SiteMeta> | null;
+        // Only pass through if it looks like a usable SiteMeta; otherwise the
+        // builder falls back to baked-in defaults.
+        if (data && typeof data.title === 'string' && typeof data.subtitle === 'string') {
+          siteMeta = data as SiteMeta;
+        }
+      }
+    } catch (_e) {
+      // fall back to defaults baked into buildGalleryHTML
+    }
+    return addSecurityHeaders(c.html(buildGalleryHTML(baseUrl, siteMeta)));
   });
 };

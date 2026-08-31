@@ -1,10 +1,6 @@
 import { Hono } from 'hono';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import {
-  clearAccessJwksCache,
-  normalizeAccessIssuer,
-  verifyAccessJwt,
-} from '../src/app/accessJwt';
+import { clearAccessJwksCache, normalizeAccessIssuer, verifyAccessJwt } from '../src/app/accessJwt';
 import { requireAdminAuth } from '../src/app/security';
 import type { Env } from '../src/types';
 
@@ -199,10 +195,10 @@ describe('requireAdminAuth', () => {
   const env = {} as Env;
 
   it('allows requests when ACCESS_BYPASS_DEV is true', async () => {
-    const response = await app.fetch(
-      new Request('https://gallery.test/admin'),
-      { ...env, ACCESS_BYPASS_DEV: 'true' },
-    );
+    const response = await app.fetch(new Request('https://gallery.test/admin'), {
+      ...env,
+      ACCESS_BYPASS_DEV: 'true',
+    });
 
     expect(response.status).toBe(200);
   });

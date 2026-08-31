@@ -66,7 +66,9 @@ describe('mediaResponse', () => {
     expect(resp.headers.get('Cache-Control')).toBe(PUBLIC_IMAGE_CACHE);
     expect(resp.headers.get('ETag')).toBe('"img-1-99"');
     expect(resp.headers.get('Content-Length')).toBe('42');
-    expect(r2ObjectEtag({ body: null, httpEtag: '"from-r2"' }, { id: 'x', size: 1 })).toBe('"from-r2"');
+    expect(r2ObjectEtag({ body: null, httpEtag: '"from-r2"' }, { id: 'x', size: 1 })).toBe(
+      '"from-r2"',
+    );
   });
 });
 

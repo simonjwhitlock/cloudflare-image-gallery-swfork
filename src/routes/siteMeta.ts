@@ -9,6 +9,20 @@ const faviconHeaders = {
 };
 
 export const registerSiteMetaRoutes = (app: GalleryApp) => {
+  app.get('/api/site-meta', async (c) => {
+    const stub = getIndexStub(c.env);
+    const resp = await stub.fetch('https://index/site-meta');
+    if (!resp.ok) {
+      const message = await resp.text();
+      return c.json({ error: 'Failed to load site meta', detail: message }, 500);
+    }
+    return addSecurityHeaders(
+      c.json(await resp.json(), 200, {
+        'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
+      }),
+    );
+  });
+
   app.get('/favicon.svg', (c) =>
     addSecurityHeaders(new Response(FAVICON_SVG, { headers: faviconHeaders })),
   );

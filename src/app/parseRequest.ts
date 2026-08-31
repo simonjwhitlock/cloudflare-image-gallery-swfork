@@ -2,9 +2,9 @@ import type { ImageMeta } from '../types';
 
 export type ParseResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
-export async function parseRequestJson(
-  request: { json(): Promise<unknown> },
-): Promise<ParseResult<unknown>> {
+export async function parseRequestJson(request: {
+  json(): Promise<unknown>;
+}): Promise<ParseResult<unknown>> {
   try {
     return { ok: true, data: await request.json() };
   } catch {

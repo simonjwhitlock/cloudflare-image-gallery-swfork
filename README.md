@@ -20,18 +20,15 @@ Just wanted to build something to document and showcase my film photography jour
 
 Design is inspired by this brilliant page: [objective.framer.website/people](https://objective.framer.website/people). I also browsed through dozens of other portfolios, stock image platforms, and galleries to get a sense of what I'd want in my own project. Vibe coded most of the UI with Claude, lol, and spent way too long battling random CSS properties and HTML structure.
 
-
 | Screen  | Preview |
 | ------- | ------- |
 | Gallery |         |
 | Upload  |         |
 | Manage  |         |
 
-
 ## Tech stack
 
 Went through a ton of tutorials, guides, and blogs trying to learn about deploying a project like this. Even started developing mindlessly and wasted a ton of time procrastinating when nothing seemed to be working. Finally came across [this video](https://youtu.be/DJtOn_Vt1uw?si=kqS-QjO0yB8mxnMh) and a couple of others from the same creator, which inspired me to take a deeper look into Cloudflare's offerings, and the more I read their documentation, the more I realised this might be the way to go.
-
 
 | Layer              | Technology                            |
 | ------------------ | ------------------------------------- |
@@ -42,10 +39,9 @@ Went through a ton of tutorials, guides, and blogs trying to learn about deployi
 | Image optimization | Cloudflare Image Resizing + Cache API |
 | Auth               | Cloudflare Access (admin routes)      |
 
-
 Every other option I considered (Vercel, Cloudinary, AWS) would either involve stitching together more services, or I feared exhausting the free tier, or felt like I might have to pay up eventually for infrastructure (especially with AWS ugh).
 
-The only comparable alternative is deploying everything on an Oracle Free ARM VPS. That approach would mean handling everything myself, which is great for learning end-to-end deployment, and I'd actually do it for some other project. It would just lack the edge capabilities (not that people from all across the world, or those nasty AI bots  are dying to look at the pictures I clicked).
+The only comparable alternative is deploying everything on an Oracle Free ARM VPS. That approach would mean handling everything myself, which is great for learning end-to-end deployment, and I'd actually do it for some other project. It would just lack the edge capabilities (not that people from all across the world, or those nasty AI bots are dying to look at the pictures I clicked).
 
 Cloudflare R2 does support custom metadata on objects, so technically I could have skipped the Durable Object entirely and stored everything alongside the images. But the moment I wanted search, inline editing, custom sort order, and fast listing without scanning the entire bucket on every page load, it made way more sense to use a Durable Object with SQLite. A little more complexity, but a lot more flexibility.
 
@@ -116,7 +112,6 @@ The admin dashboard is protected by Cloudflare Access. Configure an Access appli
 
 ## API routes
 
-
 | Method | Path                         | Auth   | Description                                   |
 | ------ | ---------------------------- | ------ | --------------------------------------------- |
 | GET    | `/`                          | Public | Gallery page                                  |
@@ -127,6 +122,5 @@ The admin dashboard is protected by Cloudflare Access. Configure an Access appli
 | POST   | `/<admin>/api/upload`        | Admin  | Upload image(s)                               |
 | POST   | `/<admin>/api/images/update` | Admin  | Update image metadata                         |
 | POST   | `/<admin>/api/images/delete` | Admin  | Delete image                                  |
-
 
 `<admin>` is whatever you set as `ADMIN_PATH` (default in code is `/_admin` if unset).

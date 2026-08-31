@@ -27,6 +27,53 @@ export function buildGalleryScript(): string {
     localStorage.setItem('theme', next);
   });
 
+  /* ── Site meta (server-rendered; fetch only as live refresh fallback) ── */
+  (function(){
+    var emailAddr = document.querySelector('.email-toast-addr');
+    var copyEmailBtn = document.getElementById('copyEmail');
+    var copyLabel = document.getElementById('copyLabel');
+    var emailToast = document.getElementById('emailToast');
+    var contactBtn = document.getElementById('contactBtn');
+    var toastTimer = null;
+
+    var setContactEmail = function(addr){
+      if (!addr) return;
+      window.siteContactEmail = addr;
+      if (emailAddr) emailAddr.textContent = addr;
+    };
+
+    var initialEmail = emailAddr ? emailAddr.textContent.trim() : '';
+    if (initialEmail) setContactEmail(initialEmail);
+
+    if (contactBtn) {
+      contactBtn.addEventListener('click', function(){
+        emailToast.classList.toggle('visible');
+        if (emailToast.classList.contains('visible')) {
+          if (toastTimer) clearTimeout(toastTimer);
+          toastTimer = setTimeout(function(){ emailToast.classList.remove('visible'); }, 6000);
+        }
+      });
+    }
+
+    fetch('/api/site-meta')
+      .then(function(r){ return r.json(); })
+      .then(function(meta){
+        if (!meta || !meta.contactEmail) return;
+        setContactEmail(meta.contactEmail);
+        if (meta.title) {
+          var heroTitle = document.querySelector('.hero-title');
+          if (heroTitle) heroTitle.innerHTML = esc(meta.title).replace(/\\n/g, '<br>');
+          document.title = meta.title.replace(/\\n+/g, ' ').trim();
+        }
+        if (meta.subtitle) {
+          var heroSub = document.querySelector('.hero-sub');
+          var footerBrand = document.querySelector('.footer-brand');
+          if (heroSub) heroSub.textContent = meta.subtitle;
+          if (footerBrand) footerBrand.textContent = meta.subtitle;
+        }
+      }).catch(function(){});
+  })();
+
   var grid = document.getElementById('grid');
   var carousel = document.getElementById('carousel');
   var cImg = document.getElementById('carouselImg');
@@ -254,21 +301,13 @@ ${emitBrowserImageUrlHelpers()}
     }
   });
 
-  /* ── Contact toast ── */
+  /* ── Contact toast: outside click + copy ── */
   var emailToast = document.getElementById('emailToast');
   var contactBtn = document.getElementById('contactBtn');
   var copyEmailBtn = document.getElementById('copyEmail');
   var copyLabel = document.getElementById('copyLabel');
-  var toastTimer = null;
-  contactBtn.addEventListener('click', function(){
-    emailToast.classList.toggle('visible');
-    if (emailToast.classList.contains('visible')) {
-      if (toastTimer) clearTimeout(toastTimer);
-      toastTimer = setTimeout(function(){ emailToast.classList.remove('visible'); }, 6000);
-    }
-  });
   copyEmailBtn.addEventListener('click', function(){
-    navigator.clipboard.writeText('aanjneygupta43@gmail.com').then(function(){
+    navigator.clipboard.writeText(window.siteContactEmail || 'aanjneygupta43@gmail.com').then(function(){
       copyLabel.textContent = 'Copied';
       setTimeout(function(){ copyLabel.textContent = 'Copy'; }, 1500);
     }).catch(function(){});

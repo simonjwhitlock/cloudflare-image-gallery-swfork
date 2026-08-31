@@ -1,4 +1,6 @@
-export function imagesListUrl(params: { limit?: number; cursor?: string; q?: string } = {}): string {
+export function imagesListUrl(
+  params: { limit?: number; cursor?: string; q?: string } = {},
+): string {
   const search = new URLSearchParams();
   if (params.limit != null) search.set('limit', String(params.limit));
   if (params.cursor) search.set('cursor', params.cursor);

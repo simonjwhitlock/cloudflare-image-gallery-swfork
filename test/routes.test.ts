@@ -235,4 +235,78 @@ describe('admin routes', () => {
     await expect(response.json()).resolves.toMatchObject({ ok: true, id: 'img-1' });
     expect(bucket.deleteKeys).toEqual(['images/img-1.jpg']);
   });
+
+  it('renders the gallery with defaults when stored site meta predates styling fields', async () => {
+    // Simulates a record saved before colors/typography fields existed.
+    const doFetch = vi.fn((request: RequestInfo | URL) => {
+      const url = request instanceof Request ? request.url : request.toString();
+      const path = new URL(url).pathname;
+      if (path === '/site-meta') {
+        return Response.json({
+          title: 'Old record',
+          subtitle: 'Old subtitle',
+          contactEmail: 'old@example.com',
+        } satisfies Partial<import('../src/types').SiteMeta>);
+      }
+      return new Response('not found', { status: 404 });
+    });
+    const { env } = createEnv(doFetch);
+
+    const response = await app.fetch(adminRequest('/'), env);
+
+    expect(response.ok).toBe(true);
+    const html = await response.text();
+    expect(html).toContain('<title>Old record</title>');
+    expect(html).toContain('Old subtitle');
+    expect(html).not.toContain('Internal Server Error');
+  });
+
+  it('renders the gallery with defaults when the DO is unavailable', async () => {
+    const doFetch = vi.fn(() => new Response('DO unavailable', { status: 500 }));
+    const { env } = createEnv(doFetch);
+
+    const response = await app.fetch(adminRequest('/'), env);
+
+    expect(response.ok).toBe(true);
+    const html = await response.text();
+    expect(html).toContain('<title>');
+  });
+
+  it('applies title typography overrides to .hero-title so they beat the base rule', async () => {
+    const doFetch = vi.fn((request: RequestInfo | URL) => {
+      const url = request instanceof Request ? request.url : request.toString();
+      const path = new URL(url).pathname;
+      if (path === '/site-meta') {
+        return Response.json({
+          title: 'Styled gallery',
+          subtitle: 'A project by Aanjney',
+          contactEmail: 'hi@example.com',
+          titleFont: 'Georgia, serif',
+          titleSize: '6',
+          titleWeight: 700,
+          titleSpacing: '-0.02',
+          titleTransform: 'none',
+          titleAlign: 'left',
+          heroSize: 'md',
+          colors: { darkText: '', darkBg: '', lightText: '', lightBg: '' },
+        } satisfies import('../src/types').SiteMeta);
+      }
+      return new Response('not found', { status: 404 });
+    });
+    const { env } = createEnv(doFetch);
+
+    const response = await app.fetch(adminRequest('/'), env);
+
+    expect(response.ok).toBe(true);
+    const html = await response.text();
+    const overrides = html.match(/<style id="site-style-overrides">([\s\S]*?)<\/style>/);
+    expect(overrides).not.toBeNull();
+    const css = overrides?.[1] ?? '';
+    // Typography must land on .hero-title (the h1), not .hero.
+    expect(css).toContain('.hero-title{font-family:Georgia, serif');
+    expect(css).toContain('.hero-title{');
+    expect(css).toMatch(/\.hero-title\{[^}]*font-size:clamp\(2rem,8vmax,6rem\)/);
+    expect(css).toMatch(/\.hero-title\{[^}]*font-weight:700/);
+    expect(css).toMatch(/\.hero\{text-align:left;padding:9rem 2rem 6rem/);
+  });
 });

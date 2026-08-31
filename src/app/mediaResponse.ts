@@ -15,10 +15,7 @@ type R2ImageObject = {
   size?: number;
 };
 
-export const etagsMatch = (
-  ifNoneMatch: string | undefined,
-  etag: string | undefined,
-): boolean => {
+export const etagsMatch = (ifNoneMatch: string | undefined, etag: string | undefined): boolean => {
   if (!etag || !ifNoneMatch) return false;
   return ifNoneMatch.replace(/W\//, '') === etag.replace(/W\//, '');
 };

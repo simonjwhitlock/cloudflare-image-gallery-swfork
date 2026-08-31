@@ -1,11 +1,64 @@
-import { Env, ImageMeta, ListResponse, StatsResponse } from '../types';
+import { Env, ImageMeta, ListResponse, StatsResponse, SiteMeta, HeroAlign } from '../types';
 
 type AddPayload = ImageMeta;
 
 const ORDER_KEY = 'order';
+const SITE_META_KEY = 'site_meta';
 const META_PREFIX = 'meta:';
 export const ORDER_LIMIT = 5000;
 const META_READ_BATCH = 128;
+
+const DEFAULT_SITE_META: SiteMeta = {
+  title: 'Stills from my\nfilm camera',
+  subtitle: 'A project by Aanjney',
+  contactEmail: 'aanjneygupta43@gmail.com',
+  titleFont: '',
+  titleSize: '',
+  titleWeight: 0,
+  titleSpacing: '',
+  titleTransform: '',
+  titleAlign: '',
+  heroSize: '',
+  colors: { darkText: '', darkBg: '', lightText: '', lightBg: '' },
+};
+
+const TITLE_TRANSFORMS = new Set(['', 'none', 'uppercase', 'lowercase', 'capitalize']);
+const TITLE_ALIGNS = new Set<HeroAlign | ''>(['', 'left', 'center', 'right']);
+const HERO_SIZES = new Set(['', 'sm', 'md', 'lg', 'xl']);
+const CSS_COLOR_RE =
+  /^(#[0-9a-fA-F]{3,8}|rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(,\s*[\d.]+\s*)?\)|)$/;
+const FONT_NAME_RE = /^[^{}<>@;\\/]{0,120}$/;
+
+/** Keep only printable chars and strip HTML-meaningful ones for safe CSS values. */
+const sanitizeCssText = (s: unknown, max: number): string => {
+  if (typeof s !== 'string') return '';
+  return s
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .replace(/[{}<>@;\\]/g, '')
+    .trim()
+    .slice(0, max);
+};
+
+const sanitizeColor = (s: unknown): string => {
+  const v = sanitizeCssText(s, 40);
+  return CSS_COLOR_RE.test(v) ? v : '';
+};
+
+const sanitizeTitleTransform = (s: unknown): string => {
+  const v = sanitizeCssText(s, 20).toLowerCase();
+  return TITLE_TRANSFORMS.has(v) ? v : '';
+};
+
+const sanitizeTitleAlign = (s: unknown): HeroAlign | '' => {
+  const v = sanitizeCssText(s, 10).toLowerCase();
+  return TITLE_ALIGNS.has(v as HeroAlign | '') ? (v as HeroAlign | '') : '';
+};
+
+const clampWeight = (w: unknown): number => {
+  const n = typeof w === 'number' ? Math.round(w) : 0;
+  if (n >= 100 && n <= 900 && n % 100 === 0) return n;
+  return 0;
+};
 
 export class ImageIndex {
   private readonly state: DurableObjectState;
@@ -42,7 +95,71 @@ export class ImageIndex {
       return this.handleDelete(request);
     }
 
+    if (url.pathname === '/site-meta') {
+      if (request.method === 'GET') return this.handleGetSiteMeta();
+      if (request.method === 'POST') return this.handleUpdateSiteMeta(request);
+    }
+
     return new Response('Not found', { status: 404 });
+  }
+
+  private async handleGetSiteMeta() {
+    const stored = await this.state.storage.get<SiteMeta>(SITE_META_KEY);
+    // Merge over defaults so records saved before the styling fields existed
+    // (or with missing fields) still return a complete SiteMeta.
+    const meta: SiteMeta = stored
+      ? {
+          ...DEFAULT_SITE_META,
+          ...stored,
+          colors: { ...DEFAULT_SITE_META.colors, ...(stored.colors || {}) },
+        }
+      : DEFAULT_SITE_META;
+    return Response.json(meta);
+  }
+
+  private async handleUpdateSiteMeta(request: Request) {
+    try {
+      const payload = (await request.json()) as Partial<SiteMeta>;
+      if (
+        !payload ||
+        typeof payload.title !== 'string' ||
+        !payload.title.trim() ||
+        typeof payload.subtitle !== 'string' ||
+        !payload.subtitle.trim() ||
+        typeof payload.contactEmail !== 'string' ||
+        !payload.contactEmail.trim()
+      ) {
+        return new Response('title, subtitle and contactEmail are required', {
+          status: 400,
+        });
+      }
+      const meta: SiteMeta = {
+        title: payload.title,
+        subtitle: payload.subtitle,
+        contactEmail: payload.contactEmail,
+        titleFont: FONT_NAME_RE.test(payload.titleFont ?? '')
+          ? sanitizeCssText(payload.titleFont, 120)
+          : '',
+        titleSize: sanitizeCssText(payload.titleSize, 8).replace(/[^\d.]/g, ''),
+        titleWeight: clampWeight(payload.titleWeight),
+        titleSpacing: sanitizeCssText(payload.titleSpacing, 8).replace(/[^\d.\-]/g, ''),
+        titleTransform: sanitizeTitleTransform(payload.titleTransform),
+        titleAlign: sanitizeTitleAlign(payload.titleAlign),
+        heroSize: HERO_SIZES.has(payload.heroSize as SiteMeta['heroSize'])
+          ? (payload.heroSize as SiteMeta['heroSize'])
+          : '',
+        colors: {
+          darkText: sanitizeColor(payload.colors?.darkText),
+          darkBg: sanitizeColor(payload.colors?.darkBg),
+          lightText: sanitizeColor(payload.colors?.lightText),
+          lightBg: sanitizeColor(payload.colors?.lightBg),
+        },
+      };
+      await this.state.storage.put(SITE_META_KEY, meta);
+      return Response.json(meta);
+    } catch (_e) {
+      return new Response('Invalid JSON', { status: 400 });
+    }
   }
 
   private async handleAdd(request: Request) {
@@ -154,9 +271,7 @@ export class ImageIndex {
     const slice = listSource.slice(offset, offset + limit);
     if (!metaById) metaById = await this.getMetaById(slice);
 
-    const items = slice
-      .map((id) => metaById.get(id))
-      .filter((m): m is ImageMeta => Boolean(m));
+    const items = slice.map((id) => metaById.get(id)).filter((m): m is ImageMeta => Boolean(m));
     const nextOffset = offset + slice.length;
     const nextCursor =
       nextOffset < listSource.length ? btoa(JSON.stringify({ offset: nextOffset })) : null;

@@ -42,6 +42,31 @@ export const registerAdminRoutes = (app: GalleryApp) => {
     return addSecurityHeaders(c.json(await resp.json()));
   });
 
+  app.get('/_admin/api/site-meta', async (c) => {
+    const stub = getIndexStub(c.env);
+    const resp = await stub.fetch('https://index/site-meta');
+    if (!resp.ok) {
+      const message = await resp.text();
+      return c.json({ error: 'Failed to load site meta', detail: message }, 500);
+    }
+    return addSecurityHeaders(c.json(await resp.json()));
+  });
+
+  app.post('/_admin/api/site-meta', async (c) => {
+    const json = await parseRequestJson(c.req);
+    if (!json.ok) return c.json({ error: json.error }, 400);
+    const stub = getIndexStub(c.env);
+    const doResp = await stub.fetch('https://index/site-meta', {
+      method: 'POST',
+      body: JSON.stringify(json.data),
+    });
+    if (!doResp.ok) {
+      const message = await doResp.text();
+      return c.json({ error: 'Failed to update site meta', detail: message }, 500);
+    }
+    return addSecurityHeaders(c.json(await doResp.json()));
+  });
+
   app.post('/_admin/api/images/delete', async (c) => {
     const json = await parseRequestJson(c.req);
     if (!json.ok) return c.json({ error: json.error }, 400);

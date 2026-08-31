@@ -11,8 +11,7 @@ export type AccessJwtConfig = {
 };
 
 export type AccessJwtVerifyResult =
-  | { ok: true; payload: Record<string, unknown> }
-  | { ok: false; reason: string };
+  { ok: true; payload: Record<string, unknown> } | { ok: false; reason: string };
 
 export const normalizeAccessIssuer = (teamDomain: string): string => {
   const trimmed = teamDomain.trim().replace(/\/$/, '');
@@ -57,13 +56,9 @@ const fetchJwks = async (issuer: string, fetchFn: typeof fetch): Promise<Jwk[]> 
 };
 
 const importRsaKey = (jwk: Jwk): Promise<CryptoKey> =>
-  crypto.subtle.importKey(
-    'jwk',
-    jwk,
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['verify'],
-  );
+  crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, [
+    'verify',
+  ]);
 
 export const clearAccessJwksCache = (): void => {
   jwksCache = null;
