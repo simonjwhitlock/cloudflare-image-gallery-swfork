@@ -322,6 +322,49 @@ body{
   .edit-form{grid-template-columns:1fr}
 }
 .setting-card p{cursor:pointer;transition:opacity .2s}
+/* ── Tag chips & filter bar ── */
+.tag-filter-bar{display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem}
+.tag-chip{
+  display:inline-flex;align-items:center;gap:0.25rem;
+  font-family:'Inter',sans-serif;font-size:0.6875rem;font-weight:600;
+  letter-spacing:0.05em;padding:0.25rem 0.65rem;cursor:pointer;
+  background:var(--hover-bg);color:var(--text-dim);
+  border:1px solid var(--border);border-radius:999px;
+  transition:all 0.2s;text-transform:lowercase;
+}
+.tag-chip:hover{color:var(--text-heading);border-color:var(--text-muted)}
+.tag-chip.active{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.manage-table .tag-chip{cursor:default;pointer-events:none}
+.tags-row{display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.35rem}
+/* ── Tag autocomplete dropdown ── */
+.tag-suggest{
+  position:absolute;top:100%;left:0;right:0;z-index:50;margin-top:2px;
+  background:var(--surface);border:1px solid var(--border);
+  box-shadow:0 8px 24px rgba(0,0,0,0.35);max-height:200px;overflow-y:auto;
+}
+.tag-suggest-item{
+  display:block;width:100%;text-align:left;background:none;border:none;
+  font-family:'Inter',sans-serif;font-size:0.8125rem;color:var(--text);
+  padding:0.5rem 0.9rem;cursor:pointer;transition:background 0.15s,color 0.15s;
+  text-transform:lowercase;
+}
+.tag-suggest-item:hover,.tag-suggest-item.active{background:var(--hover-bg);color:var(--text-heading)}
+/* ── Native date inputs (capture date picker) ── */
+.settings-form input[type="date"],
+.edit-form input[type="date"],
+.fields-grid input[type="date"]{
+  color-scheme:dark light;
+  font-family:'Inter',sans-serif;
+}
+.edit-form input[type="date"],
+.fields-grid input[type="date"]{
+  width:100%;background:var(--input-bg);border:1px solid var(--border);color:var(--text);
+  font-size:1rem;padding:0.75rem 1rem;border-radius:0;transition:border-color 0.3s;
+}
+.edit-form input[type="date"]:focus,
+.fields-grid input[type="date"]:focus{outline:none;border-color:var(--text-muted)}
+::-webkit-calendar-picker-indicator{filter:invert(0.6);cursor:pointer}
+[data-theme="light"] ::-webkit-calendar-picker-indicator{filter:none}
 /* ── Site Settings Form ── */
 .settings-form{max-width:640px}
 .settings-form .form-group{margin-bottom:1.5rem}

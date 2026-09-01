@@ -56,6 +56,12 @@ export type ImageMeta = {
   cameraBody?: string;
   filmStock?: string;
   location?: string;
+  /** Date of capture, e.g. "2024-08-15" or free-form "August 2024". */
+  captureDate?: string;
+  /** Free-form description shown in the carousel. */
+  description?: string;
+  /** Lowercase tags used for filtering and quick-adding. */
+  tags?: string[];
   year?: string;
 };
 

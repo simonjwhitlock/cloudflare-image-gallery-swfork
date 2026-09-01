@@ -77,12 +77,13 @@ export function buildAdminBody(): string {
       <div class="stat-card"><p class="stat-label">Avg Size</p><p class="stat-value" id="statAvgSize">&mdash;</p></div>
     </div>
     <div class="manage-toolbar">
-      <div class="search-box"><span class="material-symbols-outlined">search</span><input id="searchInput" type="text" placeholder="Search archive..." /></div>
+      <div class="search-box"><span class="material-symbols-outlined">search</span><input id="searchInput" type="text" placeholder="Search archive... (name, place, tag, description)" /></div>
       <div class="toolbar-actions">
         <span id="manageError" class="error-text" aria-live="assertive" role="status"></span>
         <button id="backfillPlaceholders" class="btn-ghost" type="button">Backfill Colors</button>
       </div>
     </div>
+    <div id="tagFilterBar" class="tag-filter-bar" style="display:none" role="group" aria-label="Filter by tag"></div>
     <div class="manage-table-wrap">
       <table class="manage-table">
         <thead><tr>

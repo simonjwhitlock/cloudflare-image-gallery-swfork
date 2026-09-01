@@ -2,6 +2,7 @@ import { buildCacheKey, getEdgeCache } from '../app/cache';
 import {
   MEDIA_NOT_MODIFIED_CACHE,
   PUBLIC_IMAGE_CACHE,
+  buildBufferedImageResponse,
   buildR2ImageResponse,
   buildTransformedImageResponse,
   etagsMatch,
@@ -41,7 +42,10 @@ export const registerMediaRoutes = (app: GalleryApp) => {
       return notModifiedResponse(etag, MEDIA_NOT_MODIFIED_CACHE);
     }
 
-    const resp = addSecurityHeaders(buildR2ImageResponse(obj, meta));
+    // Buffer the object so the edge-cache write completes quickly in
+    // waitUntil instead of being tied to the client's download.
+    const bytes = await obj.arrayBuffer();
+    const resp = addSecurityHeaders(buildBufferedImageResponse(bytes, meta.contentType, etag));
     c.executionCtx?.waitUntil(cache.put(cacheReq, resp.clone()));
     return resp;
   });
@@ -83,24 +87,48 @@ export const registerMediaRoutes = (app: GalleryApp) => {
       return notModifiedResponse(etag, PUBLIC_IMAGE_CACHE, { Vary: 'Accept' });
     }
 
-    const resp = await fetch(origin, {
-      cf: {
-        image: imageOpts,
-        cacheEverything: true,
-        cacheTtl: 86400,
-        cacheKey: cacheTag,
-      },
-    });
-
-    if (!resp.ok) {
+    const serveFallbackFor = async () => {
       const obj = await c.env.IMAGES_BUCKET.get(meta.key);
       if (!obj?.body) return notFoundResponse(true);
-      const fallback = addSecurityHeaders(buildR2ImageResponse(obj, meta));
+      // Buffer so the cache write in waitUntil can complete immediately.
+      const bytes = await obj.arrayBuffer();
+      const fallback = addSecurityHeaders(
+        buildBufferedImageResponse(bytes, meta.contentType, r2ObjectEtag(obj, meta)),
+      );
       c.executionCtx?.waitUntil(cache.put(edgeKey, fallback.clone()));
       return fallback;
+    };
+
+    let resp: Response;
+    try {
+      resp = await fetch(origin, {
+        cf: {
+          image: imageOpts,
+          cacheEverything: true,
+          cacheTtl: 86400,
+          cacheKey: cacheTag,
+        },
+      });
+    } catch (_e) {
+      // Transform subrequest failed outright (DNS/network) — serve from R2.
+      return serveFallbackFor();
     }
 
-    const final = addSecurityHeaders(buildTransformedImageResponse(resp, etag));
+    // A non-image 200 (e.g. an origin error page) would otherwise be cached
+    // and served as a "thumbnail"; treat it as a failure and fall back to R2.
+    const contentType = resp.headers.get('Content-Type') || '';
+    if (!resp.ok || !contentType.startsWith('image/')) {
+      return serveFallbackFor();
+    }
+
+    // Buffer the transformed image so the edge-cache write in waitUntil is a
+    // quick memory copy rather than a stream clone tied to the client's
+    // download speed. Cloned streams stall (and get cancelled) when the client
+    // aborts a preload — the source of the waitUntil warnings.
+    const bytes = await resp.arrayBuffer();
+    const final = addSecurityHeaders(
+      buildBufferedImageResponse(bytes, contentType || undefined, etag),
+    );
     c.executionCtx?.waitUntil(cache.put(edgeKey, final.clone()));
     return final;
   });

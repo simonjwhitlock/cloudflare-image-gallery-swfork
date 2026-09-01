@@ -60,6 +60,25 @@ const clampWeight = (w: unknown): number => {
   return 0;
 };
 
+/** Lowercases, trims and de-dupes tags; max 12 tags of up to 32 chars each. */
+const normalizeTags = (input: unknown): string[] | undefined => {
+  if (!Array.isArray(input)) return undefined;
+  const seen = new Set<string>();
+  for (const raw of input) {
+    if (typeof raw !== 'string') continue;
+    const t = raw.trim().toLowerCase().replace(/[^a-z0-9 \-_]/g, '').slice(0, 32);
+    if (t && seen.size < 12) seen.add(t);
+  }
+  return seen.size ? Array.from(seen) : undefined;
+};
+
+/** Accepts ISO yyyy-mm-dd or free-form text up to 40 chars. */
+const normalizeCaptureDate = (input: unknown): string | undefined => {
+  if (typeof input !== 'string') return undefined;
+  const v = input.trim().slice(0, 40);
+  return v || undefined;
+};
+
 export class ImageIndex {
   private readonly state: DurableObjectState;
   constructor(state: DurableObjectState, _env: Env) {
@@ -188,6 +207,9 @@ export class ImageIndex {
       cameraBody: payload.cameraBody,
       filmStock: payload.filmStock,
       location: payload.location,
+      captureDate: normalizeCaptureDate(payload.captureDate),
+      description: typeof payload.description === 'string' ? payload.description.trim() : undefined,
+      tags: normalizeTags(payload.tags),
       year: payload.year,
     };
 
@@ -237,6 +259,7 @@ export class ImageIndex {
     const limitParam = url.searchParams.get('limit');
     const cursorParam = url.searchParams.get('cursor');
     const q = url.searchParams.get('q')?.toLowerCase().trim() || '';
+    const tag = url.searchParams.get('tag')?.toLowerCase().trim() || '';
 
     const limit = Math.min(500, Math.max(1, limitParam ? Number(limitParam) || 20 : 20));
 
@@ -259,12 +282,14 @@ export class ImageIndex {
     let listSource = order;
     let metaById: Map<string, ImageMeta> | null = null;
 
-    if (q) {
+    if (q || tag) {
       const allMeta = await this.getMetaById(order);
       metaById = allMeta;
       listSource = order.filter((id) => {
         const m = allMeta.get(id);
-        return m ? this.matchesQuery(m, q) : false;
+        if (!m) return false;
+        if (tag && !(m.tags?.includes(tag) ?? false)) return false;
+        return q ? this.matchesQuery(m, q) : true;
       });
     }
 
@@ -303,6 +328,12 @@ export class ImageIndex {
       cameraBody: payload.cameraBody ?? existing.cameraBody,
       filmStock: payload.filmStock ?? existing.filmStock,
       location: payload.location ?? existing.location,
+      captureDate: normalizeCaptureDate(payload.captureDate ?? existing.captureDate),
+      description:
+        payload.description !== undefined
+          ? payload.description.trim()
+          : existing.description,
+      tags: payload.tags !== undefined ? normalizeTags(payload.tags) : existing.tags,
       year: payload.year ?? existing.year,
     };
 
@@ -362,7 +393,10 @@ export class ImageIndex {
       (m.location?.toLowerCase().includes(q) ?? false) ||
       (m.cameraBody?.toLowerCase().includes(q) ?? false) ||
       (m.filmStock?.toLowerCase().includes(q) ?? false) ||
+      (m.captureDate?.toLowerCase().includes(q) ?? false) ||
+      (m.description?.toLowerCase().includes(q) ?? false) ||
       (m.year?.toLowerCase().includes(q) ?? false) ||
+      (m.tags?.some((t) => t.includes(q)) ?? false) ||
       m.id.toLowerCase().includes(q)
     );
   }

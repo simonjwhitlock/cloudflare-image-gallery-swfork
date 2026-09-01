@@ -14,10 +14,74 @@ export function buildAdminManageScript(): string {
   var prevStack = [];
   var pageSize = 10;
   var editingId = null;
+  var activeTag = '';
 
   var fmtDate = function(iso){
     if (!iso) return '';
     return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  };
+
+  var fmtCapture = function(v){
+    if (!v) return '';
+    // ISO yyyy-mm-dd → locale date; free-form text shown as typed.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      var d = new Date(v + 'T00:00:00Z');
+      if (!isNaN(d.getTime())) return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    }
+    return v;
+  };
+
+  var fmtCapture = function(v){
+    if (!v) return '';
+    // ISO yyyy-mm-dd → locale date; free-form text shown as typed.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      var d = new Date(v + 'T00:00:00Z');
+      if (!isNaN(d.getTime())) return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    }
+    return v;
+  };
+
+  var valToTags = function(val){
+    var seen = {}, out = [];
+    String(val||'').split(',').forEach(function(t){
+      var tag = String(t||'').trim().toLowerCase().replace(/[^a-z0-9 _\\-]/g,'').slice(0,32);
+      if (tag && out.indexOf(tag) === -1) out.push(tag);
+    });
+    return out;
+  };
+
+  /** All distinct tags across currently-known items (for quick-add/filter UI). */
+  var collectTags = function(items){
+    var counts = {};
+    (items||[]).forEach(function(it){
+      (it.tags||[]).forEach(function(t){ counts[t] = (counts[t]||0)+1; });
+    });
+    return Object.keys(counts).sort();
+  };
+
+  /** Clickable chips for quick tag filtering above the manage table. */
+  var renderTagBar = function(){
+    var bar = qs('tagFilterBar');
+    if (!bar) return;
+    bar.innerHTML = '';
+    var tags = collectTags(manageItems);
+    if (!tags.length && !activeTag) { bar.style.display = 'none'; return; }
+    bar.style.display = 'flex';
+    if (activeTag) {
+      var clear = document.createElement('button');
+      clear.type='button'; clear.className='tag-chip active';
+      clear.textContent='\\u2715 ' + activeTag;
+      clear.title = 'Clear tag filter';
+      clear.addEventListener('click', function(){ activeTag=''; prevStack.length=0; loadManagePage(null); });
+      bar.appendChild(clear);
+    }
+    tags.filter(function(t){ return t !== activeTag; }).forEach(function(t){
+      var b = document.createElement('button');
+      b.type='button'; b.className='tag-chip'; b.textContent=t;
+      b.title = 'Filter by tag: ' + t;
+      b.addEventListener('click', function(){ activeTag=t; prevStack.length=0; loadManagePage(null); });
+      bar.appendChild(b);
+    });
   };
 
   var renderManage = function(){
@@ -42,11 +106,12 @@ export function buildAdminManageScript(): string {
       thumbTd.appendChild(thumbDiv);
       tr.appendChild(thumbTd);
 
-      /* Location / Year */
+      /* Location / Date */
       var locTd = document.createElement('td');
       var locParts = [];
       if (item.location) locParts.push(item.location);
-      if (item.year) locParts.push(item.year);
+      if (item.captureDate) locParts.push(fmtCapture(item.captureDate));
+      else if (item.year) locParts.push(item.year);
       var titleDiv = document.createElement('div');
       titleDiv.className = 'manage-title';
       titleDiv.textContent = locParts.join(', ') || '\\u2014';
@@ -59,6 +124,16 @@ export function buildAdminManageScript(): string {
         if (item.filmStock) sub.push(item.filmStock);
         subDiv.textContent = sub.join(' \\u2022 ');
         locTd.appendChild(subDiv);
+      }
+      if (item.tags && item.tags.length) {
+        var tagsDiv = document.createElement('div');
+        tagsDiv.className = 'manage-tags';
+        item.tags.forEach(function(t){
+          var chip = document.createElement('span');
+          chip.className = 'tag-chip'; chip.textContent = t;
+          tagsDiv.appendChild(chip);
+        });
+        locTd.appendChild(tagsDiv);
       }
       tr.appendChild(locTd);
 
@@ -135,7 +210,9 @@ export function buildAdminManageScript(): string {
       {label:'Camera Body',field:'cameraBody',val:item.cameraBody||'',ph:'e.g. Leica M6'},
       {label:'Film Stock',field:'filmStock',val:item.filmStock||'',ph:'e.g. Kodak Portra 400'},
       {label:'Location',field:'location',val:item.location||'',ph:'e.g. Faroe Islands'},
-      {label:'Year',field:'year',val:item.year||'',ph:'e.g. 2024'}
+      {label:'Date of capture',field:'captureDate',val:item.captureDate||'',ph:'e.g. 2024-08-15'},
+      {label:'Description',field:'description',val:item.description||'',ph:'Optional description'},
+      {label:'Tags (comma-separated)',field:'tagsRaw',val:(item.tags||[]).join(', '),ph:'e.g. landscape, sea'}
     ];
     var inputs = {};
     fields.forEach(function(f){
@@ -144,11 +221,25 @@ export function buildAdminManageScript(): string {
       var l = document.createElement('label');
       l.textContent = f.label;
       g.appendChild(l);
+      // Native date picker for captureDate; text for everything else.
+      var isDate = f.field === 'captureDate';
       var inp = document.createElement('input');
-      inp.type = 'text'; inp.value = f.val; inp.placeholder = f.ph;
+      inp.type = isDate ? 'date' : 'text';
+      // Non-ISO legacy values (free-form text) won't fit type=date; keep a
+      // text fallback in that case so the old value stays editable.
+      if (isDate && f.val && !/^\d{4}-\d{2}-\d{2}$/.test(f.val)) {
+        inp.type = 'text';
+        inp.placeholder = f.ph;
+      }
+      inp.value = f.val; inp.placeholder = f.ph;
       inputs[f.field] = inp;
       g.appendChild(inp);
       form.appendChild(g);
+    });
+    attachTagAutocomplete(inputs.tagsRaw, function(){
+      // live-sync normalized tags back into the queue item so Save uses them
+      var raw = inputs.tagsRaw.value;
+      item.tags = valToTags(raw);
     });
     td.appendChild(form);
 
@@ -159,12 +250,23 @@ export function buildAdminManageScript(): string {
     saveBtn.addEventListener('click', function(){
       saveBtn.disabled = true; saveBtn.textContent = 'Saving...';
       var body = {id:item.id};
-      fields.forEach(function(f){ body[f.field] = inputs[f.field].value.trim().toUpperCase(); });
+      fields.forEach(function(f){
+        if (f.field === 'tagsRaw') {
+          // Read the LIVE input value — f.val is the stale initial value from
+          // when the edit row opened, which caused tags to be silently lost.
+          body.tags = valToTags(inputs.tagsRaw.value);
+          return;
+        }
+        var val = inputs[f.field].value.trim();
+        body[f.field] = f.field === 'captureDate' || f.field === 'description'
+          ? val
+          : val.toUpperCase();
+      });
       var altParts = [];
       if (body.filmStock) altParts.push(body.filmStock);
       if (body.cameraBody) altParts.push(body.cameraBody);
       if (body.location) altParts.push(body.location);
-      if (body.year) altParts.push(body.year);
+      if (body.captureDate) altParts.push(body.captureDate);
       body.alt = altParts.length ? 'Film photograph \\u2014 ' + altParts.join(', ') : (item.name || 'Film photograph');
       fetch(ADMIN+'/api/images/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
         .then(function(r){ return r.json().then(function(d){
@@ -174,6 +276,7 @@ export function buildAdminManageScript(): string {
             if (manageItems[i].id===item.id){ manageItems[i]=updated; break; }
           }
           editingId = null; renderManage();
+          refreshTagSuggestions();
           manageError.textContent = 'Updated'; setTimeout(function(){if(manageError.textContent==='Updated')manageError.textContent='';},1200);
         }); }).catch(function(){ alert('Update failed'); saveBtn.disabled=false; saveBtn.textContent='Save'; });
     });
@@ -192,10 +295,102 @@ export function buildAdminManageScript(): string {
       var seen=[],pg=null;
       var doP=function(){
         var p=new URLSearchParams();p.set('limit','50');if(pg)p.set('cursor',pg);
-        fetch('/api/images?'+p.toString()).then(function(r){return r.json();}).then(function(d){
+        // _t busts the browser/edge cache: /api/images is edge-cached ~30s,
+        // which would otherwise serve pre-tag data to the suggestion engine.
+        p.set('_t', String(Date.now()));
+        fetch('/api/images?'+p.toString(), { cache: 'no-store' }).then(function(r){return r.json();}).then(function(d){
           seen=seen.concat(d.items||[]);pg=d.cursor||null;if(pg)doP();else resolve(seen);
         }).catch(function(){resolve(seen);});
       };doP();
+    });
+  };
+
+  /* ── Tag autocomplete ──
+   * Suggests tags already used across the archive while typing. Suggestions
+   * come from the full archive (fetched once, refreshed on save) so they
+   * include images outside the current page. Click a suggestion (or press
+   * Enter/Tab when highlighted) to complete the current tag.
+   */
+  var allTagsCache = [];
+  var refreshTagSuggestions = function(){
+    // Merge freshly-saved page data immediately so a just-typed tag suggests
+    // right away even while the full-archive refetch is in flight.
+    allTagsCache = collectTags(manageItems);
+    loadAllManage().then(function(items){
+      allTagsCache = collectTags(items);
+    }).catch(function(){});
+  };
+  refreshTagSuggestions();
+
+  var attachTagAutocomplete = function(input, onChange){
+    var box = null, items = [], activeIdx = -1;
+
+    var closeBox = function(){ if (box) { box.remove(); box = null; items = []; activeIdx = -1; } };
+
+    var setActive = function(i){
+      activeIdx = i;
+      if (!box) return;
+      Array.prototype.forEach.call(box.children, function(el, ix){
+        el.classList.toggle('active', ix === i);
+      });
+    };
+
+    var pick = function(tag){
+      var parts = input.value.split(',');
+      var typed = (parts[parts.length-1] || '');
+      var head = input.value.slice(0, input.value.length - typed.length);
+      // Preserve other tags + separators; replace the current fragment.
+      input.value = head + tag;
+      closeBox();
+      input.focus();
+      if (onChange) onChange();
+    };
+
+    var renderBox = function(){
+      closeBox();
+      if (!items.length) return;
+      box = document.createElement('div');
+      box.className = 'tag-suggest';
+      items.forEach(function(tag, i){
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'tag-suggest-item';
+        b.textContent = tag;
+        b.addEventListener('mousedown', function(e){ e.preventDefault(); pick(tag); });
+        box.appendChild(b);
+      });
+      input.parentElement.style.position = 'relative';
+      input.parentElement.appendChild(box);
+      setActive(-1);
+    };
+
+    var currentFragment = function(){
+      var parts = input.value.split(',');
+      return String(parts[parts.length-1] || '').trim().toLowerCase();
+    };
+
+    var update = function(){
+      var frag = currentFragment();
+      var typed = input.value.split(',').map(function(s){return s.trim().toLowerCase();}).filter(Boolean);
+      if (!frag) { closeBox(); return; }
+      items = allTagsCache.filter(function(t){
+        return typed.indexOf(t) === -1 && t.indexOf(frag) === 0 && t !== frag;
+      }).slice(0, 6);
+      renderBox();
+    };
+
+    input.addEventListener('input', function(){ update(); if (onChange) onChange(); });
+    input.addEventListener('blur', function(){ setTimeout(closeBox, 120); });
+    input.addEventListener('keydown', function(e){
+      if (!box || !items.length) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); setActive(Math.min(activeIdx+1, items.length-1)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(Math.max(activeIdx-1, 0)); }
+      else if (e.key === 'Enter' || e.key === 'Tab') {
+        if (activeIdx >= 0 && items[activeIdx]) { e.preventDefault(); pick(items[activeIdx]); }
+        else if (items.length === 1) { e.preventDefault(); pick(items[0]); }
+        else closeBox();
+      }
+      else if (e.key === 'Escape') closeBox();
     });
   };
 
@@ -219,12 +414,13 @@ export function buildAdminManageScript(): string {
     qsP.set('limit',String(pageSize));
     if (cursorParam) qsP.set('cursor',cursorParam);
     if (searchInput.value) qsP.set('q',searchInput.value);
+    if (activeTag) qsP.set('tag',activeTag);
     fetch('/api/images?'+qsP.toString()).then(function(resp){
       if (resp.status===401){manageError.textContent='Unauthorized. Please sign in via Cloudflare Access.';return;}
       return resp.json().then(function(data){
         manageItems=data.items||[]; currentCursor=cursorParam||null; nextCursor=data.cursor||null;
         prevPageBtn.disabled=prevStack.length===0; nextPageBtn.disabled=!nextCursor;
-        manageError.textContent=''; renderManage();
+        manageError.textContent=''; renderManage(); renderTagBar();
         loadBucketStats();
       });
     }).catch(function(){manageError.textContent='Failed to load images';});

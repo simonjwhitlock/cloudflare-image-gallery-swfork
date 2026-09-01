@@ -60,6 +60,42 @@ describe('ImageIndex Durable Object', () => {
       expect(data.items.map((i) => i.id)).toEqual(['b', 'a']);
     });
 
+    it('normalizes tags (lowercase, trimmed, de-duped) and keeps captureDate/description', async () => {
+      const resp = await inst.fetch(
+        req('https://index/add', {
+          method: 'POST',
+          body: JSON.stringify(
+            meta({
+              id: 'a',
+              key: 'k1',
+              createdAt: '2024-01-01T00:00:00Z',
+              tags: ['Sea', ' SEA ', 'mountain!', '  ', 'sea'],
+              captureDate: '2024-08-15',
+              description: '  A rocky coastline at dusk  ',
+            }),
+          ),
+        }),
+      );
+      const saved = (await resp.json()) as ImageMeta;
+      expect(saved.tags).toEqual(['sea', 'mountain']);
+      expect(saved.captureDate).toBe('2024-08-15');
+      expect(saved.description).toBe('A rocky coastline at dusk');
+
+      await inst.fetch(
+        req('https://index/add', {
+          method: 'POST',
+          body: JSON.stringify(meta({ id: 'b', key: 'k2', createdAt: '2024-01-02T00:00:00Z', tags: ['forest'] })),
+        }),
+      );
+
+      const byTag = (await (await inst.fetch(req('https://index/list?tag=sea'))).json()) as ListResponse;
+      expect(byTag.items.map((i) => i.id)).toEqual(['a']);
+      const byOther = (await (await inst.fetch(req('https://index/list?tag=forest'))).json()) as ListResponse;
+      expect(byOther.items.map((i) => i.id)).toEqual(['b']);
+      const none = (await (await inst.fetch(req('https://index/list?tag=nomatch'))).json()) as ListResponse;
+      expect(none.items).toEqual([]);
+    });
+
     it('moves an existing id to the front when added again', async () => {
       await inst.fetch(
         req('https://index/add', {

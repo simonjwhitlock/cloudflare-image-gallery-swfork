@@ -159,6 +159,21 @@ body{
 }
 .detail-item{display:flex;align-items:center;gap:0.5rem}
 .detail-item .material-symbols-outlined{font-size:1rem}
+.carousel-description{
+  margin-top:1rem;max-width:640px;margin-left:auto;margin-right:auto;
+  font-family:'Inter',sans-serif;font-size:0.8125rem;line-height:1.6;
+  color:var(--text);transition:color 0.4s;
+}
+.carousel-tags{
+  display:flex;flex-wrap:wrap;justify-content:center;gap:0.5rem;margin-top:1rem;
+}
+.tag-chip{
+  display:inline-block;font-family:'Inter',sans-serif;font-size:0.625rem;
+  letter-spacing:0.08em;text-transform:lowercase;font-weight:600;
+  padding:0.2rem 0.6rem;border-radius:999px;
+  border:1px solid var(--border);color:var(--text-dim);
+  background:transparent;transition:color 0.4s,border-color 0.4s;
+}
 .carousel-counter{
   margin-top:1.5rem;
   font-family:'Inter',sans-serif;font-size:0.625rem;

@@ -134,8 +134,15 @@ export const registerAdminRoutes = (app: GalleryApp) => {
 
     const cache = getEdgeCache();
     const base = new URL(c.req.url);
-    const apiUrl = new URL('/api/images', base).toString();
-    await cache.delete(new Request(apiUrl)).catch(() => {});
+    // /api/images is cached per query string; purge the variants the admin
+    // UI uses (list pages, tag-filtered lists) plus the bare URL.
+    const purgeUrls = [
+      '/api/images',
+      '/api/images?limit=50',
+      '/api/images?limit=200',
+      '/api/images?limit=10',
+    ].map((p) => new URL(p, base).toString());
+    await Promise.allSettled(purgeUrls.map((u) => cache.delete(new Request(u))));
 
     return addSecurityHeaders(c.json({ ok: true, image: updated }));
   });
@@ -159,6 +166,15 @@ export const registerAdminRoutes = (app: GalleryApp) => {
     const filmStock = formData.get('filmStock')?.toString().trim() || undefined;
     const location = formData.get('location')?.toString().trim() || undefined;
     const year = formData.get('year')?.toString().trim() || undefined;
+    const captureDate = formData.get('captureDate')?.toString().trim() || undefined;
+    const description = formData.get('description')?.toString().trim() || undefined;
+    const tagsRaw = formData.get('tags')?.toString() || '';
+    const tags = tagsRaw
+      ? tagsRaw
+          .split(',')
+          .map((t) => t.trim().toLowerCase())
+          .filter(Boolean)
+      : undefined;
 
     const stub = getIndexStub(c.env);
     const uploaded: ImageMeta[] = [];
@@ -195,6 +211,9 @@ export const registerAdminRoutes = (app: GalleryApp) => {
         cameraBody,
         filmStock,
         location,
+        captureDate,
+        description,
+        tags: tags?.length ? tags : undefined,
         year,
       };
 

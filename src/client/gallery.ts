@@ -95,6 +95,15 @@ export function buildGalleryScript(): string {
 ${emitBrowserEscHelper()}
 ${emitBrowserImageUrlHelpers()}
 
+  var fmtCaptureDate = function(v){
+    if (!v) return '';
+    if (/^\\d{4}-\\d{2}-\\d{2}$/.test(v)) {
+      var d = new Date(v + 'T00:00:00Z');
+      if (!isNaN(d.getTime())) return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    }
+    return v;
+  };
+
   var renderItems = function(items) {
     var frag = document.createDocumentFragment();
     for (var i = 0; i < items.length; i++) {
@@ -142,7 +151,8 @@ ${emitBrowserImageUrlHelpers()}
       caption.className = 'caption';
       var parts = [];
       if (item.location) parts.push(item.location);
-      if (item.year) parts.push(item.year);
+      if (item.captureDate) parts.push(fmtCaptureDate(item.captureDate));
+      else if (item.year) parts.push(item.year);
       if (parts.length) {
         var p = document.createElement('p');
         p.textContent = parts.join(' \\u2022 ');
@@ -162,19 +172,13 @@ ${emitBrowserImageUrlHelpers()}
     grid.appendChild(frag);
   };
 
-  var shuffle = function(arr) {
-    for (var i = arr.length - 1; i > 0; i--) {
-      var j = Math.floor(Math.random() * (i + 1));
-      var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
-    }
-    return arr;
-  };
-
   var fetchInitial = function() {
     fetch('/api/images?limit=200')
       .then(function(r){ return r.json(); })
       .then(function(data){
-        var items = shuffle(data.items || []);
+        // Keep the API order (newest first) so the gallery is stable across
+        // reloads and matches the admin Manage tab ordering.
+        var items = data.items || [];
         allItems = allItems.concat(items);
         renderItems(items);
       })
@@ -215,10 +219,40 @@ ${emitBrowserImageUrlHelpers()}
     if (item.location) {
       html += '<div class="detail-item"><span class="material-symbols-outlined">location_on</span><span>' + esc(item.location) + '</span></div>';
     }
-    if (item.year) {
+    if (item.captureDate) {
+      html += '<div class="detail-item"><span class="material-symbols-outlined">calendar_today</span><span>' + esc(fmtCaptureDate(item.captureDate)) + '</span></div>';
+    } else if (item.year) {
       html += '<div class="detail-item"><span class="material-symbols-outlined">calendar_today</span><span>' + esc(item.year) + '</span></div>';
     }
     cDetails.innerHTML = html;
+
+    /* Description + tags live below the details row. */
+    var metaWrap = cDetails.parentElement;
+    var existing = document.getElementById('carouselDescription');
+    if (existing) existing.remove();
+    var existingTags = document.getElementById('carouselTags');
+    if (existingTags) existingTags.remove();
+
+    if (item.description) {
+      var descEl = document.createElement('p');
+      descEl.id = 'carouselDescription';
+      descEl.className = 'carousel-description';
+      descEl.textContent = item.description;
+      metaWrap.insertBefore(descEl, cCounter);
+    }
+    if (item.tags && item.tags.length) {
+      var tagsEl = document.createElement('div');
+      tagsEl.id = 'carouselTags';
+      tagsEl.className = 'carousel-tags';
+      for (var ti = 0; ti < item.tags.length; ti++) {
+        var chip = document.createElement('span');
+        chip.className = 'tag-chip';
+        chip.textContent = item.tags[ti];
+        tagsEl.appendChild(chip);
+      }
+      metaWrap.insertBefore(tagsEl, cCounter);
+    }
+
     cCounter.textContent = String(idx+1).padStart(2,'0') + ' / ' + String(allItems.length).padStart(2,'0');
   };
 
