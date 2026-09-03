@@ -12,11 +12,15 @@ export const registerGalleryRoutes = (app: GalleryApp) => {
     const cursor = c.req.query('cursor');
     const limit = c.req.query('limit');
     const q = c.req.query('q');
+    const tag = c.req.query('tag');
+    const status = c.req.query('status');
     const stub = getIndexStub(c.env);
     const qs = new URLSearchParams();
     if (cursor) qs.set('cursor', cursor);
     if (limit) qs.set('limit', limit);
     if (q) qs.set('q', q);
+    if (tag) qs.set('tag', tag);
+    if (status) qs.set('status', status);
     const resp = await stub.fetch(`https://index/list?${qs.toString()}`);
     const data = (await resp.json()) as ListResponse;
     return addSecurityHeaders(

@@ -12,9 +12,10 @@ export function buildAdminManageScript(): string {
   var currentCursor = null;
   var nextCursor = null;
   var prevStack = [];
-  var pageSize = 10;
+  var pageSize = 25;
   var editingId = null;
   var activeTag = '';
+  var activeFilters = { camera: '', film: '', meta: '' };
 
   var fmtDate = function(iso){
     if (!iso) return '';
@@ -31,14 +32,10 @@ export function buildAdminManageScript(): string {
     return v;
   };
 
-  var fmtCapture = function(v){
-    if (!v) return '';
-    // ISO yyyy-mm-dd → locale date; free-form text shown as typed.
-    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-      var d = new Date(v + 'T00:00:00Z');
-      if (!isNaN(d.getTime())) return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-    }
-    return v;
+  var fmtSize = function(bytes){
+    if (!bytes) return '';
+    if (bytes >= 1024*1024) return (bytes/(1024*1024)).toFixed(1) + ' MB';
+    return Math.round(bytes/1024) + ' KB';
   };
 
   var valToTags = function(val){
@@ -87,12 +84,24 @@ export function buildAdminManageScript(): string {
   var renderManage = function(){
     manageBody.innerHTML = '';
     if (pageInfo){ pageInfo.textContent = 'Page ' + (prevStack.length+1) + (nextCursor ? ' \\u2192' : ''); }
-    manageEmpty.style.display = manageItems.length ? 'none' : 'block';
+    var visible = clientFilter(manageItems);
+    manageEmpty.style.display = visible.length ? 'none' : 'block';
 
-    manageItems.forEach(function(item){
+    visible.forEach(function(item){
       var tr = document.createElement('tr');
 
-      /* Thumb */
+      /* Bulk-select checkbox */
+      var checkTd = document.createElement('td');
+      checkTd.className = 'col-check';
+      var check = document.createElement('input');
+      check.type = 'checkbox';
+      check.className = 'bulk-check';
+      check.setAttribute('data-id', item.id);
+      check.addEventListener('change', updateBulkBar);
+      checkTd.appendChild(check);
+      tr.appendChild(checkTd);
+
+      /* Thumb (small, compact) */
       var thumbTd = document.createElement('td');
       var thumbDiv = document.createElement('div');
       thumbDiv.className = 'manage-thumb';
@@ -106,17 +115,17 @@ export function buildAdminManageScript(): string {
       thumbTd.appendChild(thumbDiv);
       tr.appendChild(thumbTd);
 
-      /* Location / Date */
+      /* Details: location • capture date • camera • film • tags */
       var locTd = document.createElement('td');
+      var titleDiv = document.createElement('div');
+      titleDiv.className = 'manage-title';
       var locParts = [];
       if (item.location) locParts.push(item.location);
       if (item.captureDate) locParts.push(fmtCapture(item.captureDate));
       else if (item.year) locParts.push(item.year);
-      var titleDiv = document.createElement('div');
-      titleDiv.className = 'manage-title';
-      titleDiv.textContent = locParts.join(', ') || '\\u2014';
+      titleDiv.textContent = locParts.join(' \\u2022 ') || '\\u2014';
       locTd.appendChild(titleDiv);
-      if (item.filmStock || item.cameraBody) {
+      if (item.cameraBody || item.filmStock) {
         var subDiv = document.createElement('div');
         subDiv.className = 'manage-subtitle';
         var sub = [];
@@ -137,13 +146,13 @@ export function buildAdminManageScript(): string {
       }
       tr.appendChild(locTd);
 
-      /* Size */
+      /* Size (compact KB/MB) */
       var sizeTd = document.createElement('td');
-      sizeTd.className = 'manage-meta';
-      sizeTd.textContent = item.size ? Math.round(item.size/1024)+' KB' : '';
+      sizeTd.className = 'manage-meta text-right';
+      sizeTd.textContent = fmtSize(item.size);
       tr.appendChild(sizeTd);
 
-      /* Date */
+      /* Uploaded date (short) */
       var dateTd = document.createElement('td');
       dateTd.className = 'manage-meta';
       dateTd.textContent = fmtDate(item.createdAt);
@@ -241,6 +250,9 @@ export function buildAdminManageScript(): string {
       var raw = inputs.tagsRaw.value;
       item.tags = valToTags(raw);
     });
+    attachCameraAutocomplete(inputs.cameraBody, function(){
+      item.cameraBody = inputs.cameraBody.value.trim().toUpperCase();
+    });
     td.appendChild(form);
 
     var acts = document.createElement('div');
@@ -277,6 +289,8 @@ export function buildAdminManageScript(): string {
           }
           editingId = null; renderManage();
           refreshTagSuggestions();
+          refreshCameraSuggestions();
+          refreshFilterOptions();
           manageError.textContent = 'Updated'; setTimeout(function(){if(manageError.textContent==='Updated')manageError.textContent='';},1200);
         }); }).catch(function(){ alert('Update failed'); saveBtn.disabled=false; saveBtn.textContent='Save'; });
     });
@@ -320,13 +334,32 @@ export function buildAdminManageScript(): string {
       allTagsCache = collectTags(items);
     }).catch(function(){});
   };
-  refreshTagSuggestions();
 
-  var attachTagAutocomplete = function(input, onChange){
+  /** Distinct, title-cased camera bodies across known items. */
+  var collectCameras = function(items){
+    var counts = {};
+    (items||[]).forEach(function(it){
+      var c = String(it.cameraBody||'').trim();
+      if (c) counts[c] = 1;
+    });
+    return Object.keys(counts).sort();
+  };
+
+  /** Distinct film stocks across known items. */
+  var collectFilms = function(items){
+    var counts = {};
+    (items||[]).forEach(function(it){
+      var f = String(it.filmStock||'').trim();
+      if (f) counts[f] = 1;
+    });
+    return Object.keys(counts).sort();
+  };
+
+  /** Shared suggestion dropdown engine (used by tag & camera autocomplete). */
+  var attachSuggest = function(input, opts){
+    // opts: { values: fn()->[string], single: bool, transform: fn(str)->str, onChange: fn() }
     var box = null, items = [], activeIdx = -1;
-
     var closeBox = function(){ if (box) { box.remove(); box = null; items = []; activeIdx = -1; } };
-
     var setActive = function(i){
       activeIdx = i;
       if (!box) return;
@@ -334,52 +367,57 @@ export function buildAdminManageScript(): string {
         el.classList.toggle('active', ix === i);
       });
     };
-
-    var pick = function(tag){
-      var parts = input.value.split(',');
-      var typed = (parts[parts.length-1] || '');
-      var head = input.value.slice(0, input.value.length - typed.length);
-      // Preserve other tags + separators; replace the current fragment.
-      input.value = head + tag;
+    var pick = function(value){
+      if (opts.single) {
+        input.value = opts.transform ? opts.transform(value) : value;
+      } else {
+        var parts = input.value.split(',');
+        var typed = parts[parts.length-1] || '';
+        var head = input.value.slice(0, input.value.length - typed.length);
+        input.value = head + (opts.transform ? opts.transform(value) : value);
+      }
       closeBox();
       input.focus();
-      if (onChange) onChange();
+      if (opts.onChange) opts.onChange();
     };
-
     var renderBox = function(){
       closeBox();
       if (!items.length) return;
       box = document.createElement('div');
       box.className = 'tag-suggest';
-      items.forEach(function(tag, i){
+      items.forEach(function(value){
         var b = document.createElement('button');
         b.type = 'button';
         b.className = 'tag-suggest-item';
-        b.textContent = tag;
-        b.addEventListener('mousedown', function(e){ e.preventDefault(); pick(tag); });
+        b.textContent = value;
+        b.addEventListener('mousedown', function(e){ e.preventDefault(); pick(value); });
         box.appendChild(b);
       });
       input.parentElement.style.position = 'relative';
       input.parentElement.appendChild(box);
       setActive(-1);
     };
-
-    var currentFragment = function(){
-      var parts = input.value.split(',');
-      return String(parts[parts.length-1] || '').trim().toLowerCase();
-    };
-
     var update = function(){
-      var frag = currentFragment();
-      var typed = input.value.split(',').map(function(s){return s.trim().toLowerCase();}).filter(Boolean);
-      if (!frag) { closeBox(); return; }
-      items = allTagsCache.filter(function(t){
-        return typed.indexOf(t) === -1 && t.indexOf(frag) === 0 && t !== frag;
-      }).slice(0, 6);
+      var frag;
+      if (opts.single) {
+        frag = input.value.trim().toLowerCase();
+        if (!frag) { closeBox(); return; }
+        items = opts.values().filter(function(v){
+          return v.toLowerCase().indexOf(frag) === 0 && v.toLowerCase() !== frag;
+        }).slice(0, 6);
+      } else {
+        var parts = input.value.split(',');
+        frag = String(parts[parts.length-1] || '').trim().toLowerCase();
+        if (!frag) { closeBox(); return; }
+        var typed = input.value.split(',').map(function(s){return s.trim().toLowerCase();}).filter(Boolean);
+        items = opts.values().filter(function(v){
+          var lv = v.toLowerCase();
+          return typed.indexOf(lv) === -1 && lv.indexOf(frag) === 0 && lv !== frag;
+        }).slice(0, 6);
+      }
       renderBox();
     };
-
-    input.addEventListener('input', function(){ update(); if (onChange) onChange(); });
+    input.addEventListener('input', function(){ update(); if (opts.onChange) opts.onChange(); });
     input.addEventListener('blur', function(){ setTimeout(closeBox, 120); });
     input.addEventListener('keydown', function(e){
       if (!box || !items.length) return;
@@ -391,6 +429,26 @@ export function buildAdminManageScript(): string {
         else closeBox();
       }
       else if (e.key === 'Escape') closeBox();
+    });
+  };
+
+  var attachTagAutocomplete = function(input, onChange){
+    attachSuggest(input, { values: function(){ return allTagsCache; }, single: false, onChange: onChange });
+  };
+
+  /** Camera autocomplete: suggests camera bodies already used, single value. */
+  var allCamerasCache = [];
+  var refreshCameraSuggestions = function(){
+    allCamerasCache = collectCameras(manageItems);
+    loadAllManage().then(function(items){
+      allCamerasCache = collectCameras(items);
+    }).catch(function(){});
+  };
+  var attachCameraAutocomplete = function(input, onChange){
+    attachSuggest(input, {
+      values: function(){ return allCamerasCache; },
+      single: true,
+      onChange: onChange
     });
   };
 
@@ -415,16 +473,123 @@ export function buildAdminManageScript(): string {
     if (cursorParam) qsP.set('cursor',cursorParam);
     if (searchInput.value) qsP.set('q',searchInput.value);
     if (activeTag) qsP.set('tag',activeTag);
-    fetch('/api/images?'+qsP.toString()).then(function(resp){
+    fetch('/api/images?'+qsP.toString(), { cache: 'no-store' }).then(function(resp){
       if (resp.status===401){manageError.textContent='Unauthorized. Please sign in via Cloudflare Access.';return;}
       return resp.json().then(function(data){
         manageItems=data.items||[]; currentCursor=cursorParam||null; nextCursor=data.cursor||null;
         prevPageBtn.disabled=prevStack.length===0; nextPageBtn.disabled=!nextCursor;
-        manageError.textContent=''; renderManage(); renderTagBar();
+        manageError.textContent=''; renderManage(); renderTagBar(); renderFilterOptions();
         loadBucketStats();
       });
     }).catch(function(){manageError.textContent='Failed to load images';});
   };
+
+  var pageSizeSelect = qs('pageSizeSelect');
+  pageSizeSelect.value = String(pageSize);
+  pageSizeSelect.addEventListener('change',function(){
+    pageSize = Number(pageSizeSelect.value) || 25;
+    prevStack.length = 0;
+    loadManagePage(null);
+  });
+  var applyFilters = function(){
+    activeFilters.camera = (qs('filterCamera').value || '').toUpperCase();
+    activeFilters.film = (qs('filterFilm').value || '').toUpperCase();
+    activeFilters.meta = qs('filterMeta').value || '';
+    renderManage();
+  };
+  ['filterCamera','filterFilm','filterMeta'].forEach(function(id){
+    qs(id).addEventListener('change', applyFilters);
+  });
+  // Tag select drives the server-side tag filter (same state as the chips bar).
+  qs('filterTag').addEventListener('change', function(){
+    activeTag = qs('filterTag').value;
+    // Keep the chips bar in sync (clears its active chip or shows one).
+    prevStack.length = 0;
+    loadManagePage(null);
+  });
+  qs('clearFilters').addEventListener('click', function(){
+    qs('filterCamera').value = '';
+    qs('filterFilm').value = '';
+    qs('filterMeta').value = '';
+    qs('filterTag').value = '';
+    activeFilters = { camera: '', film: '', meta: '' };
+    activeTag = '';
+    searchInput.value = '';
+    prevStack.length = 0;
+    loadManagePage(null);
+  });
+
+  /* ── Bulk selection & status moves (Manage tab) ── */
+  var selectedIds = {};
+  var countSelected = function(scopeSel){
+    return document.querySelectorAll(scopeSel + ' input.bulk-check:checked').length;
+  };
+  var updateBulkBar = function(){
+    var n = countSelected('#manageBody');
+    qs('bulkCount').textContent = String(n);
+    qs('bulkBar').style.display = n > 0 ? 'flex' : 'none';
+    qs('bulkToArchive').style.display = 'inline-flex';
+    qs('bulkToRemove').style.display = 'inline-flex';
+    qs('bulkToActive').style.display = 'none';
+    var all = document.querySelectorAll('#manageBody input.bulk-check');
+    var allChecked = all.length > 0 && n === all.length;
+    qs('bulkSelectAll').checked = allChecked;
+    qs('checkAllHead').checked = allChecked;
+  };
+  qs('bulkSelectAll').addEventListener('change', function(){
+    var on = qs('bulkSelectAll').checked;
+    document.querySelectorAll('#manageBody input.bulk-check').forEach(function(c){
+      c.checked = on;
+    });
+    updateBulkBar();
+  });
+  qs('checkAllHead').addEventListener('change', function(){
+    qs('bulkSelectAll').checked = qs('checkAllHead').checked;
+    qs('bulkSelectAll').dispatchEvent(new Event('change'));
+  });
+
+  var bulkMove = function(ids, status, done){
+    if (!ids.length) return Promise.resolve();
+    return fetch(ADMIN + '/api/images/bulk-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ids, status: status })
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if (done) done(d);
+      return d;
+    }).catch(function(){ alert('Bulk move failed'); });
+  };
+
+  var clearSelection = function(){
+    selectedIds = {};
+    updateBulkBar();
+  };
+
+  qs('bulkToArchive').addEventListener('click', function(){
+    var ids = Array.prototype.map.call(document.querySelectorAll('#manageBody input.bulk-check:checked'), function(c){ return c.getAttribute('data-id'); });
+    bulkMove(ids, 'archive', function(d){
+      if (!d.ok && d.failed && d.failed.length) alert('Some moves failed: ' + d.failed.length);
+      prevStack.length = 0; loadManagePage(null); clearSelection();
+      if (window.loadArchivePage) window.loadArchivePage(null);
+    });
+  });
+  qs('bulkToRemove').addEventListener('click', function(){
+    var ids = Array.prototype.map.call(document.querySelectorAll('#manageBody input.bulk-check:checked'), function(c){ return c.getAttribute('data-id'); });
+    if (!confirm('Remove ' + ids.length + ' image(s) from the gallery and public archive?')) return;
+    bulkMove(ids, 'removed', function(d){
+      if (!d.ok && d.failed && d.failed.length) alert('Some moves failed: ' + d.failed.length);
+      prevStack.length = 0; loadManagePage(null); clearSelection();
+      if (window.loadRemovedPage) window.loadRemovedPage(null);
+    });
+  });
+  qs('bulkToActive').addEventListener('click', function(){
+    var ids = Array.prototype.map.call(document.querySelectorAll('#manageBody input.bulk-check:checked'), function(c){ return c.getAttribute('data-id'); });
+    bulkMove(ids, 'active', function(d){
+      prevStack.length = 0; loadManagePage(null); clearSelection();
+      if (window.loadArchivePage) window.loadArchivePage(null);
+      if (window.loadRemovedPage) window.loadRemovedPage(null);
+    });
+  });
 
   var searchTimer=null;
   searchInput.addEventListener('input',function(){
@@ -433,6 +598,62 @@ export function buildAdminManageScript(): string {
   });
   prevPageBtn.addEventListener('click',function(){ if(!prevStack.length)return; loadManagePage(prevStack.pop()||null); });
   nextPageBtn.addEventListener('click',function(){ if(!nextCursor)return; prevStack.push(currentCursor); loadManagePage(nextCursor); });
+
+  /* ── Filter bar ──
+   * Tag filter hits the API (?tag=) so it works across the whole archive;
+   * camera/film/meta filters apply client-side to the loaded page (values
+   * come from the full-archive scan so the option lists are complete).
+   */
+  var clientFilter = function(items){
+    return items.filter(function(it){
+      if (activeFilters.camera && String(it.cameraBody||'').toUpperCase() !== activeFilters.camera) return false;
+      if (activeFilters.film && String(it.filmStock||'').toUpperCase() !== activeFilters.film) return false;
+      if (activeFilters.meta === 'has-tags' && !(it.tags && it.tags.length)) return false;
+      if (activeFilters.meta === 'no-tags' && (it.tags && it.tags.length)) return false;
+      if (activeFilters.meta === 'has-date' && !it.captureDate) return false;
+      if (activeFilters.meta === 'no-date' && it.captureDate) return false;
+      if (activeFilters.meta === 'has-desc' && !it.description) return false;
+      if (activeFilters.meta === 'no-desc' && it.description) return false;
+      return true;
+    });
+  };
+
+  var renderFilterOptions = function(){
+    // Options come from the full archive scan (kept fresh by refreshes).
+    var fill = function(sel, values, allLabel){
+      if (!sel) return;
+      sel.innerHTML = '';
+      var opt0 = document.createElement('option');
+      opt0.value = ''; opt0.textContent = allLabel;
+      sel.appendChild(opt0);
+      values.forEach(function(v){
+        var o = document.createElement('option');
+        o.value = v; o.textContent = v;
+        sel.appendChild(o);
+      });
+    };
+    fill(qs('filterCamera'), collectCameras(manageAllCache), 'All cameras');
+    fill(qs('filterFilm'), collectFilms(manageAllCache), 'All film');
+    fill(qs('filterTag'), collectTags(manageAllCache), 'All tags');
+    // Reflect current selections so the dropdowns stay in sync with the
+    // tag chips bar and Clear filters.
+    qs('filterCamera').value = activeFilters.camera || '';
+    qs('filterFilm').value = activeFilters.film || '';
+    qs('filterMeta').value = activeFilters.meta || '';
+    var tagSel = qs('filterTag');
+    tagSel.value = activeTag;
+    if (tagSel.value !== activeTag) tagSel.value = ''; // option missing → reset
+  };
+
+  var refreshFilterOptions = function(){
+    loadAllManage().then(function(items){
+      manageAllCache = items;
+      renderFilterOptions();
+    }).catch(function(){ renderFilterOptions(); });
+  };
+  var manageAllCache = [];
+  refreshFilterOptions();
+  refreshCameraSuggestions();
 
   /* ── Backfill ── */
   backfillBtn.addEventListener('click',function(){

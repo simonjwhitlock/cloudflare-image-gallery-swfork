@@ -50,7 +50,7 @@ export function buildGalleryBody(
 <footer class="site-footer">
   <div class="footer-brand">${subtitle}</div>
   <div class="footer-links">
-    <a href="/">Archives</a>
+    <a href="/archive">Archive</a>
     <button type="button" id="contactBtn">Contact</button>
   </div>
   <div class="email-toast" id="emailToast">

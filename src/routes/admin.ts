@@ -7,7 +7,12 @@ import { getIndexStub, type GalleryApp } from '../app/worker';
 import { deleteImage } from '../domain/deleteImage';
 import { UPLOAD_WARM_VARIANTS, imagePath, purgeImageCacheTargets } from '../domain/imageVariants';
 import { ALLOWED_UPLOAD_TYPE_SET } from '../domain/uploadPolicy';
-import type { ImageMeta } from '../types';
+import type { BulkMoveResponse, ImageMeta } from '../types';
+
+const normalizeBulkStatus = (input: unknown): 'active' | 'archive' | 'removed' | null => {
+  const v = typeof input === 'string' ? input.trim().toLowerCase() : '';
+  return v === 'active' || v === 'archive' || v === 'removed' ? v : null;
+};
 
 export const registerAdminRoutes = (app: GalleryApp) => {
   app.use('/_admin/*', async (c, next) => {
@@ -145,6 +150,47 @@ export const registerAdminRoutes = (app: GalleryApp) => {
     await Promise.allSettled(purgeUrls.map((u) => cache.delete(new Request(u))));
 
     return addSecurityHeaders(c.json({ ok: true, image: updated }));
+  });
+
+  // Bulk move images between visibility states (active/archive/removed).
+  app.post('/_admin/api/images/bulk-status', async (c) => {
+    const json = await parseRequestJson(c.req);
+    if (!json.ok) return c.json({ error: json.error }, 400);
+    const body = json.data as { ids?: unknown; status?: unknown };
+    const ids = Array.isArray(body?.ids)
+      ? body.ids.filter((i): i is string => typeof i === 'string' && i.length > 0)
+      : [];
+    const status = normalizeBulkStatus(body?.status);
+    if (!ids.length) return c.json({ error: 'ids array is required' }, 400);
+    if (!status) return c.json({ error: 'status must be active, archive, or removed' }, 400);
+
+    const stub = getIndexStub(c.env);
+    const cache = getEdgeCache();
+    const base = new URL(c.req.url);
+    const purgeUrls = [
+      '/api/images',
+      '/api/images?limit=50',
+      '/api/images?limit=200',
+      '/api/images?limit=10',
+      '/api/archive?limit=200',
+    ].map((p) => new URL(p, base).toString());
+
+    const moved: string[] = [];
+    const failed: { id: string; error: string }[] = [];
+    for (const id of ids) {
+      const doResp = await stub.fetch('https://index/update', {
+        method: 'POST',
+        body: JSON.stringify({ id, status }),
+      });
+      if (doResp.ok) {
+        moved.push(id);
+      } else {
+        failed.push({ id, error: (await doResp.text()) || 'update failed' });
+      }
+    }
+
+    await Promise.allSettled(purgeUrls.map((u) => cache.delete(new Request(u))));
+    return addSecurityHeaders(c.json({ ok: failed.length === 0, moved, failed }));
   });
 
   app.get('/_admin/', (c) => addSecurityHeaders(c.html(buildAdminHTML(getAdminPrefix(c.env)))));

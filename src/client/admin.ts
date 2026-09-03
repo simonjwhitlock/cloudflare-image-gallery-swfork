@@ -1,6 +1,7 @@
 import { ADMIN_BACKFILL_VARIANT, ADMIN_THUMB_VARIANT } from '../domain/imageVariants';
 import { UPLOAD_FORMAT_LABEL } from '../domain/uploadPolicy';
 import { buildAdminManageScript } from './adminManage';
+import { buildStatusTabScript as buildAdminStatusTabScript } from './adminStatusTabs';
 import { buildAdminUploadScript } from './adminUpload';
 import {
   emitBrowserImageUrlHelpers,
@@ -39,6 +40,8 @@ ${emitBrowserPlaceholderHelper()}
   var tabs = document.querySelectorAll('.sidebar-nav .nav-item');
   var tabUpload = qs('tab-upload');
   var tabManage = qs('tab-manage');
+  var tabArchive = qs('tab-archive');
+  var tabRemoved = qs('tab-removed');
   var tabSettings = qs('tab-settings');
   tabs.forEach(function(btn){
     btn.addEventListener('click', function(){
@@ -47,8 +50,13 @@ ${emitBrowserPlaceholderHelper()}
       var tab = btn.getAttribute('data-tab');
       tabUpload.style.display = tab === 'upload' ? 'block' : 'none';
       tabManage.style.display = tab === 'manage' ? 'block' : 'none';
+      tabArchive.style.display = tab === 'archive' ? 'block' : 'none';
+      tabRemoved.style.display = tab === 'removed' ? 'block' : 'none';
       tabSettings.style.display = tab === 'settings' ? 'block' : 'none';
       if (window.innerWidth <= 960) sidebar.classList.remove('open');
+      // Lazy-load lists when their tab becomes visible.
+      if (tab === 'archive' && window.loadArchivePage) window.loadArchivePage(null);
+      if (tab === 'removed' && window.loadRemovedPage) window.loadRemovedPage(null);
     });
   });
 
@@ -134,6 +142,8 @@ ${emitBrowserPlaceholderHelper()}
 
 ${buildAdminUploadScript()}
 ${buildAdminManageScript()}
+${buildAdminStatusTabScript({ status: 'archive', prefix: 'archive' })}
+${buildAdminStatusTabScript({ status: 'removed', prefix: 'removed' })}
   renderQueue();
   loadManagePage(null);`);
 }

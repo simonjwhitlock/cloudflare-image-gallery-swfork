@@ -14,6 +14,12 @@ export function buildAdminBody(): string {
     <button class="nav-item" data-tab="manage" type="button">
       <span class="material-symbols-outlined">grid_view</span><span>Manage</span>
     </button>
+    <button class="nav-item" data-tab="archive" type="button">
+      <span class="material-symbols-outlined">inventory_2</span><span>Archive</span>
+    </button>
+    <button class="nav-item" data-tab="removed" type="button">
+      <span class="material-symbols-outlined">delete_sweep</span><span>Removed</span>
+    </button>
     <button class="nav-item" data-tab="settings" type="button">
       <span class="material-symbols-outlined">settings</span><span>Site</span>
     </button>
@@ -83,11 +89,62 @@ export function buildAdminBody(): string {
         <button id="backfillPlaceholders" class="btn-ghost" type="button">Backfill Colors</button>
       </div>
     </div>
+    <div class="filter-bar" role="group" aria-label="Filters">
+      <div class="filter-item">
+        <label for="pageSizeSelect">Per page</label>
+        <select id="pageSizeSelect">
+          <option value="10">10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <label for="filterCamera">Camera</label>
+        <select id="filterCamera"><option value="">All cameras</option></select>
+      </div>
+      <div class="filter-item">
+        <label for="filterFilm">Film</label>
+        <select id="filterFilm"><option value="">All film</option></select>
+      </div>
+      <div class="filter-item">
+        <label for="filterTag">Tag</label>
+        <select id="filterTag"><option value="">All tags</option></select>
+      </div>
+      <div class="filter-item">
+        <label for="filterMeta">Metadata</label>
+        <select id="filterMeta">
+          <option value="">Any state</option>
+          <option value="has-tags">Has tags</option>
+          <option value="no-tags">No tags</option>
+          <option value="has-date">Has capture date</option>
+          <option value="no-date">Missing capture date</option>
+          <option value="has-desc">Has description</option>
+          <option value="no-desc">Missing description</option>
+        </select>
+      </div>
+      <button id="clearFilters" class="btn-ghost" type="button">Clear filters</button>
+    </div>
     <div id="tagFilterBar" class="tag-filter-bar" style="display:none" role="group" aria-label="Filter by tag"></div>
-    <div class="manage-table-wrap">
+    <div class="bulk-bar" id="bulkBar" style="display:none" role="group" aria-label="Bulk actions">
+      <span class="bulk-count"><strong id="bulkCount">0</strong> selected</span>
+      <label class="bulk-select-all"><input type="checkbox" id="bulkSelectAll" /> Select all</label>
+      <button id="bulkToActive" class="btn-ghost" type="button" style="display:none">
+        <span class="material-symbols-outlined">photo_library</span> Restore to gallery
+      </button>
+      <button id="bulkToArchive" class="btn-ghost" type="button">
+        <span class="material-symbols-outlined">inventory_2</span> Move to archive
+      </button>
+      <button id="bulkToRemove" class="btn-ghost danger" type="button">
+        <span class="material-symbols-outlined">delete_sweep</span> Remove
+      </button>
+    </div>
+    <div class="manage-table-wrap compact">
       <table class="manage-table">
         <thead><tr>
-          <th>Preview</th><th>Location / Year</th><th>Size</th><th>Uploaded</th><th class="text-right">Actions</th>
+          <th class="col-check"><input type="checkbox" id="checkAllHead" aria-label="Select all on page" /></th>
+          <th>Preview</th><th>Details</th><th class="text-right">Size</th><th>Uploaded</th><th class="text-right">Actions</th>
         </tr></thead>
         <tbody id="manageBody"></tbody>
       </table>
@@ -98,6 +155,108 @@ export function buildAdminBody(): string {
       <div class="manage-footer-nav">
         <button id="prevPage" class="btn-ghost" type="button">Previous</button>
         <button id="nextPage" class="btn-ghost" type="button">Next</button>
+      </div>
+    </footer>
+  </section>
+
+  <section id="tab-archive" class="tab-panel" style="display:none">
+    <header class="section-header">
+      <div class="breadcrumbs">Dashboard / Archive</div><h2>Archive</h2>
+      <div class="header-line"></div>
+    </header>
+    <p class="tab-hint">Images here are hidden from the main gallery but available on the public <a href="/archive" target="_blank" rel="noopener">/archive</a> page.</p>
+    <div class="filter-bar" role="group" aria-label="Archive filters">
+      <div class="filter-item">
+        <label for="archivePageSize">Per page</label>
+        <select id="archivePageSize">
+          <option value="10">10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <label for="archiveSearch">Search</label>
+        <input id="archiveSearch" type="text" placeholder="Search..." />
+      </div>
+      <button id="archiveClearFilters" class="btn-ghost" type="button">Clear filters</button>
+    </div>
+    <div class="bulk-bar" id="archiveBulkBar" style="display:none" role="group" aria-label="Bulk actions">
+      <span class="bulk-count"><strong id="archiveBulkCount">0</strong> selected</span>
+      <button id="archiveBulkToActive" class="btn-ghost" type="button">
+        <span class="material-symbols-outlined">photo_library</span> Move to gallery
+      </button>
+      <button id="archiveBulkToRemove" class="btn-ghost danger" type="button">
+        <span class="material-symbols-outlined">delete_sweep</span> Remove
+      </button>
+    </div>
+    <div class="manage-table-wrap compact">
+      <table class="manage-table">
+        <thead><tr>
+          <th class="col-check"><input type="checkbox" id="archiveCheckAll" aria-label="Select all on page" /></th>
+          <th>Preview</th><th>Details</th><th class="text-right">Size</th><th>Uploaded</th><th class="text-right">Actions</th>
+        </tr></thead>
+        <tbody id="archiveBody"></tbody>
+      </table>
+    </div>
+    <div id="archiveEmpty" class="empty-state" style="display:none">Nothing in the archive.</div>
+    <footer class="manage-footer">
+      <span id="archivePageInfo" class="page-info"></span>
+      <div class="manage-footer-nav">
+        <button id="archivePrevPage" class="btn-ghost" type="button">Previous</button>
+        <button id="archiveNextPage" class="btn-ghost" type="button">Next</button>
+      </div>
+    </footer>
+  </section>
+
+  <section id="tab-removed" class="tab-panel" style="display:none">
+    <header class="section-header">
+      <div class="breadcrumbs">Dashboard / Removed</div><h2>Removed</h2>
+      <div class="header-line"></div>
+    </header>
+    <p class="tab-hint">Removed images are hidden everywhere (gallery and public archive). Deleting permanently is still available per-row.</p>
+    <div class="filter-bar" role="group" aria-label="Removed filters">
+      <div class="filter-item">
+        <label for="removedPageSize">Per page</label>
+        <select id="removedPageSize">
+          <option value="10">10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <label for="removedSearch">Search</label>
+        <input id="removedSearch" type="text" placeholder="Search..." />
+      </div>
+      <button id="removedClearFilters" class="btn-ghost" type="button">Clear filters</button>
+    </div>
+    <div class="bulk-bar" id="removedBulkBar" style="display:none" role="group" aria-label="Bulk actions">
+      <span class="bulk-count"><strong id="removedBulkCount">0</strong> selected</span>
+      <button id="removedBulkToActive" class="btn-ghost" type="button">
+        <span class="material-symbols-outlined">photo_library</span> Move to gallery
+      </button>
+      <button id="removedBulkToArchive" class="btn-ghost" type="button">
+        <span class="material-symbols-outlined">inventory_2</span> Move to archive
+      </button>
+    </div>
+    <div class="manage-table-wrap compact">
+      <table class="manage-table">
+        <thead><tr>
+          <th class="col-check"><input type="checkbox" id="removedCheckAll" aria-label="Select all on page" /></th>
+          <th>Preview</th><th>Details</th><th class="text-right">Size</th><th>Uploaded</th><th class="text-right">Actions</th>
+        </tr></thead>
+        <tbody id="removedBody"></tbody>
+      </table>
+    </div>
+    <div id="removedEmpty" class="empty-state" style="display:none">Nothing removed.</div>
+    <footer class="manage-footer">
+      <span id="removedPageInfo" class="page-info"></span>
+      <div class="manage-footer-nav">
+        <button id="removedPrevPage" class="btn-ghost" type="button">Previous</button>
+        <button id="removedNextPage" class="btn-ghost" type="button">Next</button>
       </div>
     </footer>
   </section>

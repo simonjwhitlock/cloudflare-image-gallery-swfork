@@ -63,11 +63,19 @@ export type ImageMeta = {
   /** Lowercase tags used for filtering and quick-adding. */
   tags?: string[];
   year?: string;
+  /** Visibility: 'active' (gallery, default), 'archive', or 'removed'. */
+  status?: 'active' | 'archive' | 'removed';
 };
 
 export type ListResponse = {
   items: ImageMeta[];
   cursor?: string | null;
+};
+
+export type BulkMoveResponse = {
+  ok: boolean;
+  moved: string[];
+  failed?: { id: string; error: string }[];
 };
 
 export type StatsResponse = {

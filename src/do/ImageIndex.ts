@@ -60,6 +60,12 @@ const clampWeight = (w: unknown): number => {
   return 0;
 };
 
+const STATUSES = new Set(['', 'active', 'archive', 'removed']);
+const normalizeStatus = (input: unknown): 'active' | 'archive' | 'removed' => {
+  const v = typeof input === 'string' ? input.trim().toLowerCase() : '';
+  return STATUSES.has(v) && v !== '' ? (v as 'active' | 'archive' | 'removed') : 'active';
+};
+
 /** Lowercases, trims and de-dupes tags; max 12 tags of up to 32 chars each. */
 const normalizeTags = (input: unknown): string[] | undefined => {
   if (!Array.isArray(input)) return undefined;
@@ -210,6 +216,7 @@ export class ImageIndex {
       captureDate: normalizeCaptureDate(payload.captureDate),
       description: typeof payload.description === 'string' ? payload.description.trim() : undefined,
       tags: normalizeTags(payload.tags),
+      status: normalizeStatus(payload.status),
       year: payload.year,
     };
 
@@ -260,6 +267,12 @@ export class ImageIndex {
     const cursorParam = url.searchParams.get('cursor');
     const q = url.searchParams.get('q')?.toLowerCase().trim() || '';
     const tag = url.searchParams.get('tag')?.toLowerCase().trim() || '';
+    // status filter: 'active' (default) | 'archive' | 'removed' | 'all' (admin)
+    const statusParam = url.searchParams.get('status')?.toLowerCase().trim() || '';
+    const status =
+      statusParam === 'archive' || statusParam === 'removed' || statusParam === 'all'
+        ? statusParam
+        : 'active';
 
     const limit = Math.min(500, Math.max(1, limitParam ? Number(limitParam) || 20 : 20));
 
@@ -282,12 +295,16 @@ export class ImageIndex {
     let listSource = order;
     let metaById: Map<string, ImageMeta> | null = null;
 
-    if (q || tag) {
+    if (q || tag || status !== 'all') {
       const allMeta = await this.getMetaById(order);
       metaById = allMeta;
       listSource = order.filter((id) => {
         const m = allMeta.get(id);
         if (!m) return false;
+        if (status !== 'all') {
+          const s = m.status || 'active';
+          if (s !== status) return false;
+        }
         if (tag && !(m.tags?.includes(tag) ?? false)) return false;
         return q ? this.matchesQuery(m, q) : true;
       });
@@ -334,6 +351,7 @@ export class ImageIndex {
           ? payload.description.trim()
           : existing.description,
       tags: payload.tags !== undefined ? normalizeTags(payload.tags) : existing.tags,
+      status: payload.status !== undefined ? normalizeStatus(payload.status) : normalizeStatus(existing.status),
       year: payload.year ?? existing.year,
     };
 
