@@ -105,8 +105,8 @@ export function buildAdminBody(): string {
         <select id="filterCamera"><option value="">All cameras</option></select>
       </div>
       <div class="filter-item">
-        <label for="filterFilm">Film</label>
-        <select id="filterFilm"><option value="">All film</option></select>
+        <label for="filterFilm">Lens</label>
+        <select id="filterFilm"><option value="">All lenses</option></select>
       </div>
       <div class="filter-item">
         <label for="filterTag">Tag</label>
@@ -139,6 +139,34 @@ export function buildAdminBody(): string {
       <button id="bulkToRemove" class="btn-ghost danger" type="button">
         <span class="material-symbols-outlined">delete_sweep</span> Remove
       </button>
+      <button id="bulkFieldsToggle" class="btn-ghost" type="button">
+        <span class="material-symbols-outlined">edit_note</span> Set fields…
+      </button>
+    </div>
+    <div class="bulk-fields-panel" id="bulkFieldsPanel" style="display:none">
+      <p class="bulk-fields-hint">Applies to selected images only. Leave a field empty to leave it unchanged.</p>
+      <div class="fields-grid">
+        <div class="field-group">
+          <label for="bulkCamera">Camera Body</label>
+          <input id="bulkCamera" type="text" placeholder="Leave unchanged…" />
+        </div>
+        <div class="field-group">
+          <label for="bulkLens">Lens</label>
+          <input id="bulkLens" type="text" placeholder="Leave unchanged…" />
+        </div>
+        <div class="field-group">
+          <label for="bulkCaptureDate">Capture Date</label>
+          <input id="bulkCaptureDate" type="date" />
+        </div>
+        <div class="field-group">
+          <label for="bulkTags">Tags (replaces existing)</label>
+          <input id="bulkTags" type="text" placeholder="e.g. landscape, sea — or leave unchanged" />
+        </div>
+      </div>
+      <div class="edit-actions">
+        <button id="bulkFieldsCancel" class="btn-cancel" type="button">Cancel</button>
+        <button id="bulkFieldsApply" class="btn-save" type="button">Apply to Selected</button>
+      </div>
     </div>
     <div class="manage-table-wrap compact">
       <table class="manage-table">
@@ -190,6 +218,34 @@ export function buildAdminBody(): string {
       <button id="archiveBulkToRemove" class="btn-ghost danger" type="button">
         <span class="material-symbols-outlined">delete_sweep</span> Remove
       </button>
+      <button id="archiveBulkFieldsToggle" class="btn-ghost" type="button">
+        <span class="material-symbols-outlined">edit_note</span> Set fields…
+      </button>
+    </div>
+    <div class="bulk-fields-panel" id="archiveBulkFieldsPanel" style="display:none">
+      <p class="bulk-fields-hint">Applies to selected images only. Leave a field empty to leave it unchanged.</p>
+      <div class="fields-grid">
+        <div class="field-group">
+          <label for="archiveBulkCamera">Camera Body</label>
+          <input id="archiveBulkCamera" type="text" placeholder="Leave unchanged…" />
+        </div>
+        <div class="field-group">
+          <label for="archiveBulkLens">Lens</label>
+          <input id="archiveBulkLens" type="text" placeholder="Leave unchanged…" />
+        </div>
+        <div class="field-group">
+          <label for="archiveBulkCaptureDate">Capture Date</label>
+          <input id="archiveBulkCaptureDate" type="date" />
+        </div>
+        <div class="field-group">
+          <label for="archiveBulkTags">Tags (replaces existing)</label>
+          <input id="archiveBulkTags" type="text" placeholder="e.g. landscape, sea — or leave unchanged" />
+        </div>
+      </div>
+      <div class="edit-actions">
+        <button id="archiveBulkFieldsCancel" class="btn-cancel" type="button">Cancel</button>
+        <button id="archiveBulkFieldsApply" class="btn-save" type="button">Apply to Selected</button>
+      </div>
     </div>
     <div class="manage-table-wrap compact">
       <table class="manage-table">
@@ -241,6 +297,34 @@ export function buildAdminBody(): string {
       <button id="removedBulkToArchive" class="btn-ghost" type="button">
         <span class="material-symbols-outlined">inventory_2</span> Move to archive
       </button>
+      <button id="removedBulkFieldsToggle" class="btn-ghost" type="button">
+        <span class="material-symbols-outlined">edit_note</span> Set fields…
+      </button>
+    </div>
+    <div class="bulk-fields-panel" id="removedBulkFieldsPanel" style="display:none">
+      <p class="bulk-fields-hint">Applies to selected images only. Leave a field empty to leave it unchanged.</p>
+      <div class="fields-grid">
+        <div class="field-group">
+          <label for="removedBulkCamera">Camera Body</label>
+          <input id="removedBulkCamera" type="text" placeholder="Leave unchanged…" />
+        </div>
+        <div class="field-group">
+          <label for="removedBulkLens">Lens</label>
+          <input id="removedBulkLens" type="text" placeholder="Leave unchanged…" />
+        </div>
+        <div class="field-group">
+          <label for="removedBulkCaptureDate">Capture Date</label>
+          <input id="removedBulkCaptureDate" type="date" />
+        </div>
+        <div class="field-group">
+          <label for="removedBulkTags">Tags (replaces existing)</label>
+          <input id="removedBulkTags" type="text" placeholder="e.g. landscape, sea — or leave unchanged" />
+        </div>
+      </div>
+      <div class="edit-actions">
+        <button id="removedBulkFieldsCancel" class="btn-cancel" type="button">Cancel</button>
+        <button id="removedBulkFieldsApply" class="btn-save" type="button">Apply to Selected</button>
+      </div>
     </div>
     <div class="manage-table-wrap compact">
       <table class="manage-table">

@@ -60,7 +60,8 @@ export function buildAdminUploadScript(): string {
         return g;
       };
       grid.appendChild(mkField('Camera Body', 'cameraBody', 'e.g. Leica M6', item.cameraBody));
-      grid.appendChild(mkField('Film Stock', 'filmStock', 'e.g. Kodak Portra 400', item.filmStock));
+      var lensField = mkField('Lens', 'lens', 'e.g. Voigtlander 40mm f/1.2', item.lens);
+      grid.appendChild(lensField);
       grid.appendChild(mkField('Location', 'location', 'e.g. Faroe Islands', item.location));
       grid.appendChild(mkField('Date of capture', 'captureDate', '', item.captureDate, 'date'));
       var descField = mkField('Description', 'description', 'Optional description', item.description);
@@ -75,6 +76,7 @@ export function buildAdminUploadScript(): string {
         tagsField.querySelector('input'),
         function(){ /* values sync via the data-field input listener below */ }
       );
+      attachLensAutocomplete(lensField.querySelector('input'));
 
       var actions = document.createElement('div');
       actions.className = 'queue-item-actions';
@@ -132,6 +134,75 @@ export function buildAdminUploadScript(): string {
     }).catch(function(){});
   };
   refreshTagSuggestions();
+
+  /* ── Lens autocomplete (single value, suggests lenses already used) ── */
+  var allLensSuggestions = [];
+  var refreshLensSuggestions = function(){
+    fetch('/api/images?limit=200').then(function(r){ return r.json(); }).then(function(d){
+      var counts = {};
+      (d.items||[]).forEach(function(it){
+        var f = String(it.lens||'').trim();
+        if (f) counts[f] = 1;
+      });
+      allLensSuggestions = Object.keys(counts).sort();
+    }).catch(function(){});
+  };
+  refreshLensSuggestions();
+
+  var attachLensAutocomplete = function(input){
+    if (!input) return;
+    var box = null, items = [], activeIdx = -1;
+    var closeBox = function(){ if (box) { box.remove(); box = null; items = []; activeIdx = -1; } };
+    var setActive = function(i){
+      activeIdx = i;
+      if (!box) return;
+      Array.prototype.forEach.call(box.children, function(el, ix){
+        el.classList.toggle('active', ix === i);
+      });
+    };
+    var pick = function(value){
+      input.value = value;
+      closeBox(); input.focus();
+      input.dispatchEvent(new Event('input', {bubbles:true}));
+    };
+    var renderBox = function(){
+      closeBox();
+      if (!items.length) return;
+      box = document.createElement('div');
+      box.className = 'tag-suggest';
+      items.forEach(function(value){
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'tag-suggest-item'; b.textContent = value;
+        b.addEventListener('mousedown', function(e){ e.preventDefault(); pick(value); });
+        box.appendChild(b);
+      });
+      var wrap = input.parentElement;
+      if (wrap) { wrap.style.position = 'relative'; wrap.appendChild(box); }
+    };
+    var update = function(){
+      var frag = input.value.trim().toLowerCase();
+      if (!frag) { closeBox(); return; }
+      items = allLensSuggestions.filter(function(v){
+        var lv = v.toLowerCase();
+        return lv.indexOf(frag) === 0 && lv !== frag;
+      }).slice(0, 6);
+      renderBox();
+    };
+    input.addEventListener('input', update);
+    input.addEventListener('blur', function(){ setTimeout(closeBox, 150); });
+    input.addEventListener('keydown', function(e){
+      if (!box || !items.length) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); setActive(Math.min(activeIdx+1, items.length-1)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(Math.max(activeIdx-1, 0)); }
+      else if (e.key === 'Enter' || e.key === 'Tab') {
+        if (activeIdx >= 0 && items[activeIdx]) { e.preventDefault(); pick(items[activeIdx]); }
+        else if (items.length === 1) { e.preventDefault(); pick(items[0]); }
+        else closeBox();
+      }
+      else if (e.key === 'Escape') closeBox();
+    });
+    update();
+  };
 
   var attachTagAutocomplete = function(input, onChange){
     if (!input) return;
@@ -307,7 +378,7 @@ export function buildAdminUploadScript(): string {
         return Promise.all(files.map(decodeImageFile)).then(function(metas){
           metas.forEach(function(meta,i){
             queue.push({
-              file:files[i], cameraBody:'', filmStock:'', location:'', year:'',
+              file:files[i], cameraBody:'', lens:'', location:'', year:'',
               // Pre-fill capture date from the ORIGINAL file's last-modified
               // timestamp (files[i] may be a freshly resized File whose
               // lastModified is "now"). The date picker still lets you correct
@@ -401,7 +472,7 @@ export function buildAdminUploadScript(): string {
     fd.append('file', item.file);
     fd.append('name', item.file.name);
     var altParts = [];
-    if (item.filmStock) altParts.push(item.filmStock);
+    if (item.lens) altParts.push(item.lens);
     if (item.cameraBody) altParts.push(item.cameraBody);
     if (item.location) altParts.push(item.location);
     if (item.captureDate) altParts.push(item.captureDate);
@@ -410,7 +481,7 @@ export function buildAdminUploadScript(): string {
     if (item.height) fd.append('height', String(item.height));
     if (item.placeholder) fd.append('placeholder', item.placeholder);
     if (item.cameraBody) fd.append('cameraBody', item.cameraBody.toUpperCase());
-    if (item.filmStock) fd.append('filmStock', item.filmStock.toUpperCase());
+    if (item.lens) fd.append('lens', item.lens.toUpperCase());
     if (item.location) fd.append('location', item.location.toUpperCase());
     if (item.captureDate) fd.append('captureDate', item.captureDate.trim());
     if (item.description) fd.append('description', item.description.trim());

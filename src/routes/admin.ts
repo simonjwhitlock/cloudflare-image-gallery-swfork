@@ -152,17 +152,41 @@ export const registerAdminRoutes = (app: GalleryApp) => {
     return addSecurityHeaders(c.json({ ok: true, image: updated }));
   });
 
-  // Bulk move images between visibility states (active/archive/removed).
+  // Bulk update images: visibility move (status) and/or field assignment
+  // (cameraBody, lens, captureDate, tags).
   app.post('/_admin/api/images/bulk-status', async (c) => {
     const json = await parseRequestJson(c.req);
     if (!json.ok) return c.json({ error: json.error }, 400);
-    const body = json.data as { ids?: unknown; status?: unknown };
+    const body = json.data as {
+      ids?: unknown;
+      status?: unknown;
+      fields?: unknown;
+    };
     const ids = Array.isArray(body?.ids)
       ? body.ids.filter((i): i is string => typeof i === 'string' && i.length > 0)
       : [];
-    const status = normalizeBulkStatus(body?.status);
     if (!ids.length) return c.json({ error: 'ids array is required' }, 400);
-    if (!status) return c.json({ error: 'status must be active, archive, or removed' }, 400);
+
+    const status = normalizeBulkStatus(body?.status);
+    const rawFields = (body?.fields ?? {}) as Record<string, unknown>;
+
+    // Build the metadata patch from allowed fields only.
+    const patch: Record<string, string | string[]> = {};
+    const readStr = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+    const camera = readStr(rawFields.cameraBody);
+    const lens = readStr(rawFields.lens);
+    const captureDate = readStr(rawFields.captureDate);
+    if (camera) patch.cameraBody = camera.toUpperCase();
+    if (lens) patch.lens = lens.toUpperCase();
+    if (captureDate) patch.captureDate = captureDate;
+    if (Array.isArray(rawFields.tags)) {
+      patch.tags = rawFields.tags
+        .map((t) => String(t).trim().toLowerCase())
+        .filter(Boolean);
+    }
+    if (!status && !Object.keys(patch).length) {
+      return c.json({ error: 'nothing to update: provide status or fields' }, 400);
+    }
 
     const stub = getIndexStub(c.env);
     const cache = getEdgeCache();
@@ -178,9 +202,10 @@ export const registerAdminRoutes = (app: GalleryApp) => {
     const moved: string[] = [];
     const failed: { id: string; error: string }[] = [];
     for (const id of ids) {
+      const payload: Record<string, unknown> = { id, ...(status ? { status } : {}), ...patch };
       const doResp = await stub.fetch('https://index/update', {
         method: 'POST',
-        body: JSON.stringify({ id, status }),
+        body: JSON.stringify(payload),
       });
       if (doResp.ok) {
         moved.push(id);
@@ -190,7 +215,8 @@ export const registerAdminRoutes = (app: GalleryApp) => {
     }
 
     await Promise.allSettled(purgeUrls.map((u) => cache.delete(new Request(u))));
-    return addSecurityHeaders(c.json({ ok: failed.length === 0, moved, failed }));
+    const respBody: BulkMoveResponse = { ok: failed.length === 0, moved, failed };
+    return addSecurityHeaders(c.json(respBody));
   });
 
   app.get('/_admin/', (c) => addSecurityHeaders(c.html(buildAdminHTML(getAdminPrefix(c.env)))));
@@ -209,7 +235,11 @@ export const registerAdminRoutes = (app: GalleryApp) => {
     const name = formData.get('name')?.toString().trim() || undefined;
     const placeholder = formData.get('placeholder')?.toString().trim() || undefined;
     const cameraBody = formData.get('cameraBody')?.toString().trim() || undefined;
-    const filmStock = formData.get('filmStock')?.toString().trim() || undefined;
+    // Accept `lens`; fall back to legacy `filmStock` form field from old clients.
+    const lens =
+      formData.get('lens')?.toString().trim() ||
+      formData.get('filmStock')?.toString().trim() ||
+      undefined;
     const location = formData.get('location')?.toString().trim() || undefined;
     const year = formData.get('year')?.toString().trim() || undefined;
     const captureDate = formData.get('captureDate')?.toString().trim() || undefined;
@@ -255,7 +285,7 @@ export const registerAdminRoutes = (app: GalleryApp) => {
         name: name || file.name || undefined,
         placeholder,
         cameraBody,
-        filmStock,
+        lens,
         location,
         captureDate,
         description,

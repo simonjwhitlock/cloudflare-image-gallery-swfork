@@ -25,14 +25,14 @@ export function fmtDate(iso: string): string {
 }
 
 export function buildAltFromMeta(meta: {
-  filmStock?: string;
+  lens?: string;
   cameraBody?: string;
   location?: string;
   year?: string;
   fallback?: string;
 }): string {
   const parts: string[] = [];
-  if (meta.filmStock) parts.push(meta.filmStock);
+  if (meta.lens) parts.push(meta.lens);
   if (meta.cameraBody) parts.push(meta.cameraBody);
   if (meta.location) parts.push(meta.location);
   if (meta.year) parts.push(meta.year);

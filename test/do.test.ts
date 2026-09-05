@@ -151,7 +151,7 @@ describe('ImageIndex Durable Object', () => {
               location: 'BERLIN',
               year: '2024',
               cameraBody: 'M6',
-              filmStock: 'PORTRA',
+              lens: 'SUMMICRON',
             }),
           ),
         }),
@@ -162,7 +162,29 @@ describe('ImageIndex Durable Object', () => {
       expect(m.location).toBe('BERLIN');
       expect(m.year).toBe('2024');
       expect(m.cameraBody).toBe('M6');
-      expect(m.filmStock).toBe('PORTRA');
+      expect(m.lens).toBe('SUMMICRON');
+    });
+
+    it('maps legacy filmStock field to lens on update', async () => {
+      const { inst, storage } = createStub();
+      // Simulate a legacy record stored before the rename.
+      await storage.put('meta:legacy', {
+        id: 'legacy',
+        key: 'k',
+        createdAt: '2024-01-01T00:00:00Z',
+        size: 10,
+        contentType: 'image/jpeg',
+        filmStock: 'PORTRA 400',
+      });
+      const r = await inst.fetch(
+        req('https://index/update', {
+          method: 'POST',
+          body: JSON.stringify({ id: 'legacy', location: 'OSLO' }),
+        }),
+      );
+      const updated = (await r.json()) as ImageMeta;
+      expect(updated.lens).toBe('PORTRA 400');
+      expect((updated as unknown as { filmStock?: string }).filmStock).toBeUndefined();
     });
 
     it('returns 409 when index is at capacity', async () => {

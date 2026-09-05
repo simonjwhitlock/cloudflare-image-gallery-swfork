@@ -213,8 +213,8 @@ ${emitBrowserImageUrlHelpers()}
     if (item.cameraBody) {
       html += '<div class="detail-item"><span class="material-symbols-outlined">photo_camera</span><span>' + esc(item.cameraBody) + '</span></div>';
     }
-    if (item.filmStock) {
-      html += '<div class="detail-item"><span class="material-symbols-outlined">camera_roll</span><span>' + esc(item.filmStock) + '</span></div>';
+    if (item.lens) {
+      html += '<div class="detail-item"><span class="material-symbols-outlined">lens_blur</span><span>' + esc(item.lens) + '</span></div>';
     }
     if (item.location) {
       html += '<div class="detail-item"><span class="material-symbols-outlined">location_on</span><span>' + esc(item.location) + '</span></div>';

@@ -292,6 +292,29 @@ body{
 .filter-item select:focus{outline:none;border-color:var(--text-muted)}
 .filter-item select option{background:var(--surface);color:var(--text)}
 .filter-bar .btn-ghost{padding:0.35rem 1rem;font-size:0.625rem}
+/* ── Bulk bar & fields panel ── */
+.bulk-bar{
+  display:flex;align-items:center;gap:1rem;flex-wrap:wrap;
+  background:var(--surface);border:1px solid var(--border);padding:0.9rem 1.25rem;margin-bottom:1rem;
+}
+.bulk-count{font-family:'Inter',sans-serif;font-size:0.75rem;color:var(--text-dim)}
+.bulk-count strong{color:var(--text-heading);font-weight:700}
+.bulk-select-all{
+  display:inline-flex;align-items:center;gap:0.4rem;
+  font-family:'Inter',sans-serif;font-size:0.6875rem;color:var(--text-dim);cursor:pointer;
+}
+.bulk-select-all input{cursor:pointer}
+.bulk-bar .btn-ghost{display:inline-flex;align-items:center;gap:0.35rem;padding:0.4rem 1rem;font-size:0.625rem}
+.bulk-bar .btn-ghost .material-symbols-outlined{font-size:0.875rem}
+.bulk-bar .btn-ghost.danger:hover{color:var(--error)}
+.bulk-fields-panel{
+  background:var(--surface);border:1px solid var(--border);padding:1.25rem 1.5rem;margin-bottom:1rem;
+}
+.bulk-fields-hint{
+  font-family:'Inter',sans-serif;font-size:0.6875rem;color:var(--text-muted);margin-bottom:1rem;
+}
+.bulk-fields-panel .edit-actions{margin-top:1rem}
+.btn-ghost.danger:hover{color:var(--error)}
 
 /* ── Edit Row ── */
 .edit-row td{background:var(--surface) !important;padding:1.5rem !important}

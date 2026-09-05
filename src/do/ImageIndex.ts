@@ -211,7 +211,8 @@ export class ImageIndex {
       name: payload.name,
       placeholder: payload.placeholder,
       cameraBody: payload.cameraBody,
-      filmStock: payload.filmStock,
+      // Accept the new `lens` field plus legacy `filmStock` from old clients.
+      lens: (payload as { lens?: string }).lens ?? (payload as { filmStock?: string }).filmStock,
       location: payload.location,
       captureDate: normalizeCaptureDate(payload.captureDate),
       description: typeof payload.description === 'string' ? payload.description.trim() : undefined,
@@ -332,9 +333,14 @@ export class ImageIndex {
     if (!payload.id) return new Response('Missing id', { status: 400 });
 
     const metaKey = `${META_PREFIX}${payload.id}`;
-    const existing = await this.state.storage.get<ImageMeta>(metaKey);
-    if (!existing) return new Response('Not found', { status: 404 });
+    const stored = await this.state.storage.get<ImageMeta & { filmStock?: string }>(metaKey);
+    if (!stored) return new Response('Not found', { status: 404 });
+    // Migrate legacy records: fold old filmStock into lens on read and drop
+    // the old key so it disappears from storage after the first update.
+    const { filmStock: legacyFilmStock, ...rest } = stored;
+    const existing: ImageMeta = { ...rest, lens: rest.lens ?? legacyFilmStock };
 
+    const legacy = payload as Partial<ImageMeta> & { filmStock?: string };
     const updated: ImageMeta = {
       ...existing,
       alt: payload.alt ?? existing.alt,
@@ -343,7 +349,7 @@ export class ImageIndex {
       height: payload.height ?? existing.height,
       placeholder: payload.placeholder ?? existing.placeholder,
       cameraBody: payload.cameraBody ?? existing.cameraBody,
-      filmStock: payload.filmStock ?? existing.filmStock,
+      lens: payload.lens ?? legacy.filmStock ?? existing.lens,
       location: payload.location ?? existing.location,
       captureDate: normalizeCaptureDate(payload.captureDate ?? existing.captureDate),
       description:
@@ -410,7 +416,7 @@ export class ImageIndex {
       (m.name?.toLowerCase().includes(q) ?? false) ||
       (m.location?.toLowerCase().includes(q) ?? false) ||
       (m.cameraBody?.toLowerCase().includes(q) ?? false) ||
-      (m.filmStock?.toLowerCase().includes(q) ?? false) ||
+      (m.lens?.toLowerCase().includes(q) ?? false) ||
       (m.captureDate?.toLowerCase().includes(q) ?? false) ||
       (m.description?.toLowerCase().includes(q) ?? false) ||
       (m.year?.toLowerCase().includes(q) ?? false) ||

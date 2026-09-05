@@ -54,7 +54,8 @@ export type ImageMeta = {
   name?: string;
   placeholder?: string;
   cameraBody?: string;
-  filmStock?: string;
+  /** Lens used for the photograph. (Historically stored as filmStock.) */
+  lens?: string;
   location?: string;
   /** Date of capture, e.g. "2024-08-15" or free-form "August 2024". */
   captureDate?: string;

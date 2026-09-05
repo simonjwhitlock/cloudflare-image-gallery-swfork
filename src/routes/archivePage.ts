@@ -102,7 +102,7 @@ const buildArchiveScript = (initialCount: number, dataJson: string): string => `
     var filtered = [];
     for (var i = 0; i < IMAGES.length; i++) {
       var it = IMAGES[i];
-      var hay = [it.name, it.alt, it.location, it.captureDate, it.description, (it.tags||[]).join(' '), it.cameraBody, it.filmStock]
+      var hay = [it.name, it.alt, it.location, it.captureDate, it.description, (it.tags||[]).join(' '), it.cameraBody, it.lens]
         .join(' ').toLowerCase();
       if (hay.indexOf(term) !== -1) filtered.push(it);
     }
@@ -148,7 +148,7 @@ export const registerArchiveRoutes = (app: GalleryApp) => {
       description: String((it as { description?: unknown }).description ?? ''),
       tags: Array.isArray((it as { tags?: unknown }).tags) ? (it as { tags: string[] }).tags : [],
       cameraBody: String((it as { cameraBody?: unknown }).cameraBody ?? ''),
-      filmStock: String((it as { filmStock?: unknown }).filmStock ?? ''),
+      lens: String((it as { lens?: unknown }).lens ?? ''),
     }));
     const dataJson = JSON.stringify(safeItems).replace(/</g, '\\u003c');
 

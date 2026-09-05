@@ -22,12 +22,12 @@ describe('client utils', () => {
   it('builds alt text from metadata', () => {
     expect(
       buildAltFromMeta({
-        filmStock: 'Portra',
+        lens: 'Summicron',
         cameraBody: 'M6',
         location: 'Iceland',
         year: '2024',
       }),
-    ).toBe('Film photograph \u2014 Portra, M6, Iceland, 2024');
+    ).toBe('Film photograph \u2014 Summicron, M6, Iceland, 2024');
     expect(buildAltFromMeta({ fallback: 'shot.jpg' })).toBe('shot.jpg');
   });
 });

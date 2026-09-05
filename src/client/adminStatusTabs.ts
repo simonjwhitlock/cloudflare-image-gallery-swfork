@@ -69,12 +69,12 @@ export function buildStatusTabScript(config: {
           else if (item.year) parts.push(item.year);
           titleDiv.textContent = parts.join(' \\u2022 ') || (item.name || '\\u2014');
           locTd.appendChild(titleDiv);
-          if (item.cameraBody || item.filmStock) {
+          if (item.cameraBody || item.lens) {
             var subDiv = document.createElement('div');
             subDiv.className = 'manage-subtitle';
             var sub = [];
             if (item.cameraBody) sub.push(item.cameraBody);
-            if (item.filmStock) sub.push(item.filmStock);
+            if (item.lens) sub.push(item.lens);
             subDiv.textContent = sub.join(' \\u2022 ');
             locTd.appendChild(subDiv);
           }
@@ -176,6 +176,45 @@ ${
     ? `  qs('${prefix}BulkToRemove').addEventListener('click', function(){ ${prefix}Move('removed'); });`
     : `  qs('${prefix}BulkToArchive').addEventListener('click', function(){ ${prefix}Move('archive'); });`
 }
+
+  /* ── Bulk field assignment (camera / lens / capture date / tags) ── */
+  var ${prefix}ToggleFields = function(on){
+    qs('${prefix}BulkFieldsPanel').style.display = on ? 'block' : 'none';
+  };
+  qs('${prefix}BulkFieldsToggle').addEventListener('click', function(){
+    var panel = qs('${prefix}BulkFieldsPanel');
+    var show = panel.style.display === 'none';
+    ${prefix}ToggleFields(show);
+  });
+  qs('${prefix}BulkFieldsCancel').addEventListener('click', function(){ ${prefix}ToggleFields(false); });
+  qs('${prefix}BulkFieldsApply').addEventListener('click', function(){
+    var ids = ${prefix}Selected();
+    if (!ids.length) return;
+    var fields = {};
+    var cam = qs('${prefix}BulkCamera').value.trim();
+    var lens = qs('${prefix}BulkLens').value.trim();
+    var cdate = qs('${prefix}BulkCaptureDate').value;
+    var tagsRaw = qs('${prefix}BulkTags').value;
+    if (cam) fields.cameraBody = cam;
+    if (lens) fields.lens = lens;
+    if (cdate) fields.captureDate = cdate;
+    if (tagsRaw.trim()) fields.tags = tagsRaw.split(',').map(function(t){ return t.trim().toLowerCase(); }).filter(Boolean);
+    if (!Object.keys(fields).length) { alert('Nothing to set — fill at least one field.'); return; }
+    var btn = qs('${prefix}BulkFieldsApply');
+    btn.disabled = true; btn.textContent = 'Applying…';
+    fetch(ADMIN + '/api/images/bulk-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ids, fields: fields })
+    }).then(function(r){ return r.json(); }).then(function(d){
+      btn.disabled = false; btn.textContent = 'Apply to Selected';
+      if (!d.ok && d.failed && d.failed.length) alert('Some updates failed: ' + d.failed.length);
+      ${prefix}ToggleFields(false);
+      qs('${prefix}BulkCamera').value = ''; qs('${prefix}BulkLens').value = ''; qs('${prefix}BulkCaptureDate').value = ''; qs('${prefix}BulkTags').value = '';
+      window.load${cap}Page(null);
+      if (window.loadManagePage) window.loadManagePage(null);
+    }).catch(function(){ btn.disabled = false; btn.textContent = 'Apply to Selected'; alert('Bulk update failed'); });
+  });
 
   qs('${prefix}PrevPage').addEventListener('click', function(){
     if (!${prefix}PrevStack.length) return;

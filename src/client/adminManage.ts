@@ -125,12 +125,12 @@ export function buildAdminManageScript(): string {
       else if (item.year) locParts.push(item.year);
       titleDiv.textContent = locParts.join(' \\u2022 ') || '\\u2014';
       locTd.appendChild(titleDiv);
-      if (item.cameraBody || item.filmStock) {
+      if (item.cameraBody || item.lens) {
         var subDiv = document.createElement('div');
         subDiv.className = 'manage-subtitle';
         var sub = [];
         if (item.cameraBody) sub.push(item.cameraBody);
-        if (item.filmStock) sub.push(item.filmStock);
+        if (item.lens) sub.push(item.lens);
         subDiv.textContent = sub.join(' \\u2022 ');
         locTd.appendChild(subDiv);
       }
@@ -217,7 +217,7 @@ export function buildAdminManageScript(): string {
     form.className = 'edit-form';
     var fields = [
       {label:'Camera Body',field:'cameraBody',val:item.cameraBody||'',ph:'e.g. Leica M6'},
-      {label:'Film Stock',field:'filmStock',val:item.filmStock||'',ph:'e.g. Kodak Portra 400'},
+      {label:'Lens',field:'lens',val:item.lens||'',ph:'e.g. Voigtlander 40mm f/1.2'},
       {label:'Location',field:'location',val:item.location||'',ph:'e.g. Faroe Islands'},
       {label:'Date of capture',field:'captureDate',val:item.captureDate||'',ph:'e.g. 2024-08-15'},
       {label:'Description',field:'description',val:item.description||'',ph:'Optional description'},
@@ -253,6 +253,9 @@ export function buildAdminManageScript(): string {
     attachCameraAutocomplete(inputs.cameraBody, function(){
       item.cameraBody = inputs.cameraBody.value.trim().toUpperCase();
     });
+    attachLensAutocomplete(inputs.lens, function(){
+      item.lens = inputs.lens.value.trim().toUpperCase();
+    });
     td.appendChild(form);
 
     var acts = document.createElement('div');
@@ -275,7 +278,7 @@ export function buildAdminManageScript(): string {
           : val.toUpperCase();
       });
       var altParts = [];
-      if (body.filmStock) altParts.push(body.filmStock);
+      if (body.lens) altParts.push(body.lens);
       if (body.cameraBody) altParts.push(body.cameraBody);
       if (body.location) altParts.push(body.location);
       if (body.captureDate) altParts.push(body.captureDate);
@@ -290,6 +293,7 @@ export function buildAdminManageScript(): string {
           editingId = null; renderManage();
           refreshTagSuggestions();
           refreshCameraSuggestions();
+          refreshLensSuggestions();
           refreshFilterOptions();
           manageError.textContent = 'Updated'; setTimeout(function(){if(manageError.textContent==='Updated')manageError.textContent='';},1200);
         }); }).catch(function(){ alert('Update failed'); saveBtn.disabled=false; saveBtn.textContent='Save'; });
@@ -345,14 +349,26 @@ export function buildAdminManageScript(): string {
     return Object.keys(counts).sort();
   };
 
-  /** Distinct film stocks across known items. */
+  /** Distinct lenses across known items. */
   var collectFilms = function(items){
     var counts = {};
     (items||[]).forEach(function(it){
-      var f = String(it.filmStock||'').trim();
+      var f = String(it.lens||'').trim();
       if (f) counts[f] = 1;
     });
     return Object.keys(counts).sort();
+  };
+
+  /** Lens autocomplete: suggests lenses already used, single value. */
+  var allLensesCache = [];
+  var refreshLensSuggestions = function(){
+    allLensesCache = collectFilms(manageItems);
+    loadAllManage().then(function(items){
+      allLensesCache = collectFilms(items);
+    }).catch(function(){});
+  };
+  var attachLensAutocomplete = function(input, onChange){
+    attachSuggest(input, { values: function(){ return allLensesCache; }, single: true, onChange: onChange });
   };
 
   /** Shared suggestion dropdown engine (used by tag & camera autocomplete). */
@@ -548,12 +564,13 @@ export function buildAdminManageScript(): string {
     qs('bulkSelectAll').dispatchEvent(new Event('change'));
   });
 
-  var bulkMove = function(ids, status, done){
+  var bulkMove = function(ids, status, done, fields){
     if (!ids.length) return Promise.resolve();
+    var body = fields ? { ids: ids, fields: fields } : { ids: ids, status: status };
     return fetch(ADMIN + '/api/images/bulk-status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: ids, status: status })
+      body: JSON.stringify(body)
     }).then(function(r){ return r.json(); }).then(function(d){
       if (done) done(d);
       return d;
@@ -591,6 +608,40 @@ export function buildAdminManageScript(): string {
     });
   });
 
+  /* ── Bulk field assignment (camera / lens / capture date / tags) ── */
+  var toggleBulkFields = function(on){
+    qs('bulkFieldsPanel').style.display = on ? 'block' : 'none';
+  };
+  qs('bulkFieldsToggle').addEventListener('click', function(){
+    var panel = qs('bulkFieldsPanel');
+    var show = panel.style.display === 'none';
+    toggleBulkFields(show);
+  });
+  qs('bulkFieldsCancel').addEventListener('click', function(){ toggleBulkFields(false); });
+  qs('bulkFieldsApply').addEventListener('click', function(){
+    var ids = Array.prototype.map.call(document.querySelectorAll('#manageBody input.bulk-check:checked'), function(c){ return c.getAttribute('data-id'); });
+    if (!ids.length) return;
+    var fields = {};
+    var cam = qs('bulkCamera').value.trim();
+    var lens = qs('bulkLens').value.trim();
+    var cdate = qs('bulkCaptureDate').value;
+    var tagsRaw = qs('bulkTags').value;
+    if (cam) fields.cameraBody = cam;
+    if (lens) fields.lens = lens;
+    if (cdate) fields.captureDate = cdate;
+    if (tagsRaw.trim()) fields.tags = tagsRaw.split(',').map(function(t){ return t.trim().toLowerCase(); }).filter(Boolean);
+    if (!Object.keys(fields).length) { alert('Nothing to set — fill at least one field.'); return; }
+    var btn = qs('bulkFieldsApply');
+    btn.disabled = true; btn.textContent = 'Applying…';
+    bulkMove(ids, null, function(d){
+      btn.disabled = false; btn.textContent = 'Apply to Selected';
+      if (!d.ok && d.failed && d.failed.length) alert('Some updates failed: ' + d.failed.length);
+      toggleBulkFields(false);
+      qs('bulkCamera').value = ''; qs('bulkLens').value = ''; qs('bulkCaptureDate').value = ''; qs('bulkTags').value = '';
+      prevStack.length = 0; loadManagePage(null); clearSelection();
+    }, fields);
+  });
+
   var searchTimer=null;
   searchInput.addEventListener('input',function(){
     if(searchTimer)clearTimeout(searchTimer);
@@ -607,7 +658,7 @@ export function buildAdminManageScript(): string {
   var clientFilter = function(items){
     return items.filter(function(it){
       if (activeFilters.camera && String(it.cameraBody||'').toUpperCase() !== activeFilters.camera) return false;
-      if (activeFilters.film && String(it.filmStock||'').toUpperCase() !== activeFilters.film) return false;
+      if (activeFilters.film && String(it.lens||'').toUpperCase() !== activeFilters.film) return false;
       if (activeFilters.meta === 'has-tags' && !(it.tags && it.tags.length)) return false;
       if (activeFilters.meta === 'no-tags' && (it.tags && it.tags.length)) return false;
       if (activeFilters.meta === 'has-date' && !it.captureDate) return false;
@@ -633,7 +684,7 @@ export function buildAdminManageScript(): string {
       });
     };
     fill(qs('filterCamera'), collectCameras(manageAllCache), 'All cameras');
-    fill(qs('filterFilm'), collectFilms(manageAllCache), 'All film');
+    fill(qs('filterFilm'), collectFilms(manageAllCache), 'All lenses');
     fill(qs('filterTag'), collectTags(manageAllCache), 'All tags');
     // Reflect current selections so the dropdowns stay in sync with the
     // tag chips bar and Clear filters.
