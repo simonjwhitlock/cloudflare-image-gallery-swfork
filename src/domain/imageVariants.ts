@@ -51,7 +51,7 @@ export const ADMIN_BACKFILL_VARIANT: ImageVariant = {
 export const UPLOAD_WARM_VARIANTS: ImageVariant[] = [
   { width: 240, quality: 75, format: 'auto' },
   { width: 480, quality: 78, format: 'auto' },
-  { width: 800, quality: 80, format: 'auto' },
+  GALLERY_GRID_DEFAULT_VARIANT,
   { width: 1200, quality: 80, format: 'auto' },
 ];
 
