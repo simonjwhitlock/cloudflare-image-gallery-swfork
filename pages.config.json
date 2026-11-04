@@ -1,0 +1,4 @@
+{
+  "build_command": "echo 'Worker project - no Pages build needed' && exit 0",
+  "output_directory": "."
+}
