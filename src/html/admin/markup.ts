@@ -370,13 +370,33 @@ export function buildAdminBody(): string {
         <div class="form-group">
           <label for="siteTitleFont">Title Font</label>
           <select id="siteTitleFont">
-            <option value="">Default (Epilogue)</option>
-            <option value="'Inter', sans-serif">Inter — clean sans</option>
-            <option value="Georgia, serif">Georgia — serif</option>
-            <option value="'Times New Roman', serif">Times — classic serif</option>
-            <option value="'Courier New', monospace">Courier — typewriter</option>
-            <option value="Impact, sans-serif">Impact — bold display</option>
-            <option value="system-ui, sans-serif">System UI</option>
+            <optgroup label="Sans-Serif">
+              <option value="">Default (Epilogue)</option>
+              <option value="'Inter', sans-serif">Inter — clean sans</option>
+              <option value="'Poppins', sans-serif">Poppins — geometric</option>
+              <option value="'Nunito', sans-serif">Nunito — rounded</option>
+              <option value="system-ui, sans-serif">System UI</option>
+            </optgroup>
+            <optgroup label="Serif">
+              <option value="Georgia, serif">Georgia — serif</option>
+              <option value="'Times New Roman', serif">Times — classic serif</option>
+              <option value="'Playfair Display', serif">Playfair — elegant</option>
+              <option value="'Merriweather', serif">Merriweather — readable</option>
+              <option value="'Lora', serif">Lora — contemporary</option>
+              <option value="'Source Serif 4', serif">Source Serif — editorial</option>
+              <option value="'PT Serif', serif">PT Serif — book</option>
+            </optgroup>
+            <optgroup label="Monospace">
+              <option value="'Courier New', monospace">Courier — typewriter</option>
+              <option value="'Fira Code', monospace">Fira Code — coding</option>
+              <option value="'JetBrains Mono', monospace">JetBrains Mono</option>
+              <option value="'Source Code Pro', monospace">Source Code Pro</option>
+              <option value="'IBM Plex Mono', monospace">IBM Plex Mono</option>
+            </optgroup>
+            <optgroup label="Playful / Rounded">
+              <option value="'Fredoka', sans-serif">Fredoka — bouncy</option>
+              <option value="'Baloo 2', sans-serif">Baloo 2 — fun</option>
+            </optgroup>
           </select>
         </div>
         <div class="form-group">

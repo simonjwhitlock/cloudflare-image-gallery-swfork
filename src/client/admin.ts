@@ -99,6 +99,15 @@ ${emitBrowserPlaceholderHelper()}
       }
     }
 
+    // Apply selected font to dropdown itself for preview
+    function applyFontPreview() {
+      var font = el.siteTitleFont.value;
+      el.siteTitleFont.style.fontFamily = font || '';
+    }
+    el.siteTitleFont.addEventListener('change', applyFontPreview);
+    // Apply on load in case a custom font is already set
+    loadSettings().then(applyFontPreview);
+
     saveSettingsBtn.addEventListener('click', async function(){
       settingsError.textContent = '';
       var payload = {
